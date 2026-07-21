@@ -26,6 +26,17 @@ class AiReviewService {
   listReferences(taskType) {
     return this.client.get(`/references?taskType=${encodeURIComponent(taskType)}`);
   }
+
+  uploadReference(taskType, file) {
+    const body = new FormData();
+    body.append('taskType', taskType);
+    body.append('file', file);
+    return this.client.post('/references', body);
+  }
+
+  deleteReference(key) {
+    return this.client.delete(`/references?key=${encodeURIComponent(key)}`);
+  }
 }
 
 window.AiReviewService = AiReviewService;

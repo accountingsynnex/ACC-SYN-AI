@@ -59,6 +59,13 @@ Wired up on this side:
     behavior is unchanged from before this feature existed.
   - The human reviewer in Review Queue still makes the real approve/revision call once a task
     reaches Ready for Review — AI only gates entry into that queue, not the final decision.
+- `pages/settings.js` → **Setting → AI Reference Files** tab (`renderAiReferences`) manages the
+  example files AI compares against, one group per task category (same `category` value used as
+  `taskType` above). Edit rights reuse `masterCanEdit()` (Accounting Manager only, same as
+  Management); everyone else gets a read-only list. Hidden entirely with a "not connected" notice
+  if `AiReview.enabled` is false. A category with zero reference files means AI skips the check
+  and lets the submission through as `pass` (the worker's own behavior, not something this app
+  enforces) — upload at least one example per category before relying on the gate.
 
 The worker's KV namespaces and `GEMINI_API_KEY` secret were configured directly in the Cloudflare
 dashboard (Workers Builds auto-deploys on push to its `main`, no local `wrangler` needed). Still

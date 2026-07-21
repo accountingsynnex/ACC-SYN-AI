@@ -1,4 +1,4 @@
-// Appearance, annual tasks, team/category management and settings dialogs
+// Appearance, annual tasks, team/category management, AI reference files and settings dialogs
 
 function appearancePreview(mode){
  const resolved=mode==='system'?'split':mode;
@@ -14,11 +14,11 @@ function renderAppearance(root){
  });
 }
 function renderSettingsModal(){
- if(!['appearance','task-team','annual-task'].includes(ui.settingsTab))ui.settingsTab='appearance';
+ if(!['appearance','task-team','annual-task','ai-references'].includes(ui.settingsTab))ui.settingsTab='appearance';
  const modal=document.getElementById('settingsModal');
  const managementCount=state.masterData.teams.length+state.masterData.categories.length;
  const annualCount=state.templates.length;
- modal.innerHTML=`<div class="settings-modal-head"><div class="settings-modal-title"><h2>Setting</h2><p>ปรับการแสดงผล จัดการข้อมูลระบบ และงานประจำปี</p></div><button class="close-btn" data-close-settings aria-label="ปิด Setting">×</button></div><div class="settings-modal-body"><aside class="settings-modal-sidebar"><div class="settings-modal-sidebar-label">Preferences</div><button class="settings-modal-nav ${ui.settingsTab==='appearance'?'active':''}" data-settings-modal-tab="appearance"><span class="settings-modal-nav-icon">${iconSvg('appearance')}</span><span class="settings-modal-nav-copy"><strong>Appearance</strong><small>${THEME_MODES[ui.themeMode].label} · ${resolvedTheme()==='dark'?'Dark':'Light'}</small></span></button><div class="settings-modal-sidebar-label settings-data-label">Configuration</div><button class="settings-modal-nav ${ui.settingsTab==='task-team'?'active':''}" data-settings-modal-tab="task-team"><span class="settings-modal-nav-icon">${iconSvg('settings')}</span><span class="settings-modal-nav-copy"><strong>Management</strong><small>ทีมและประเภทงาน · ${managementCount}</small></span></button><button class="settings-modal-nav ${ui.settingsTab==='annual-task'?'active':''}" data-settings-modal-tab="annual-task"><span class="settings-modal-nav-icon">${iconSvg('template')}</span><span class="settings-modal-nav-copy"><strong>Annual Task</strong><small>งานประจำปี · ${annualCount}</small></span></button></aside><section class="settings-modal-content" id="settingsModalContent"></section></div>`;
+ modal.innerHTML=`<div class="settings-modal-head"><div class="settings-modal-title"><h2>Setting</h2><p>ปรับการแสดงผล จัดการข้อมูลระบบ และงานประจำปี</p></div><button class="close-btn" data-close-settings aria-label="ปิด Setting">×</button></div><div class="settings-modal-body"><aside class="settings-modal-sidebar"><div class="settings-modal-sidebar-label">Preferences</div><button class="settings-modal-nav ${ui.settingsTab==='appearance'?'active':''}" data-settings-modal-tab="appearance"><span class="settings-modal-nav-icon">${iconSvg('appearance')}</span><span class="settings-modal-nav-copy"><strong>Appearance</strong><small>${THEME_MODES[ui.themeMode].label} · ${resolvedTheme()==='dark'?'Dark':'Light'}</small></span></button><div class="settings-modal-sidebar-label settings-data-label">Configuration</div><button class="settings-modal-nav ${ui.settingsTab==='task-team'?'active':''}" data-settings-modal-tab="task-team"><span class="settings-modal-nav-icon">${iconSvg('settings')}</span><span class="settings-modal-nav-copy"><strong>Management</strong><small>ทีมและประเภทงาน · ${managementCount}</small></span></button><button class="settings-modal-nav ${ui.settingsTab==='annual-task'?'active':''}" data-settings-modal-tab="annual-task"><span class="settings-modal-nav-icon">${iconSvg('template')}</span><span class="settings-modal-nav-copy"><strong>Annual Task</strong><small>งานประจำปี · ${annualCount}</small></span></button><button class="settings-modal-nav ${ui.settingsTab==='ai-references'?'active':''}" data-settings-modal-tab="ai-references"><span class="settings-modal-nav-icon">${iconSvg('ai')}</span><span class="settings-modal-nav-copy"><strong>AI Reference Files</strong><small>ตัวอย่างอ้างอิงสำหรับ AI ตรวจงาน</small></span></button></aside><section class="settings-modal-content" id="settingsModalContent"></section></div>`;
  modal.querySelector('[data-close-settings]').onclick=closeSettingsModal;
  modal.querySelectorAll('[data-settings-modal-tab]').forEach(button=>button.onclick=()=>{
   ui.settingsTab=button.dataset.settingsModalTab;
@@ -28,6 +28,7 @@ function renderSettingsModal(){
  const content=modal.querySelector('#settingsModalContent');
  if(ui.settingsTab==='appearance')renderAppearance(content);
  else if(ui.settingsTab==='task-team')renderMasterData(content,true);
+ else if(ui.settingsTab==='ai-references')renderAiReferences(content);
  else renderTemplates(content,true);
  ui.settingsModalOpen=true;
  openModal('settingsModal');
@@ -191,4 +192,50 @@ function openMasterModal(type,id=null){
  modal.querySelectorAll('[data-close-modal]').forEach(b=>b.onclick=closeModals);
  modal.querySelector('form').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));d.code=d.code.trim().toUpperCase();d.name=d.name.trim();d.active=d.active==='true';if(masterRows(type).some(x=>x.code.toUpperCase()===d.code&&x.id!==row?.id)){toast('รหัสนี้มีอยู่แล้ว');return}if(type==='categories'&&masterRows(type).some(x=>x.name.trim().toLowerCase()===d.name.toLowerCase()&&x.id!==row?.id)){toast('ชื่อประเภทงานนี้มีอยู่แล้ว');return}const old=row?{...row}:null;if(row){Object.assign(row,d,{updatedAt:dateISO(new Date())});migrateMasterReferences(type,row,old)}else{const newRow={id:type==='teams'?`TEAM-${d.code}`:uid('CAT'),...d,updatedAt:dateISO(new Date())};masterRows(type).push(newRow)}syncRuntimeFromMaster();Store.save();closeModals();render();toast(`${row?'บันทึก':'เพิ่ม'}${cfg.singular}แล้ว`)};
  openModal('masterModal');queueCustomSelectRefresh();
+}
+
+// ---------------- AI Reference Files ----------------
+// Reference examples the task-board-worker compares submissions against (see
+// services/ai-review-service.js and ui/task-detail.js's submitForReviewWithAiGate). Grouped by
+// category — the same value used as `taskType` when a submission is actually reviewed — so
+// managers upload one or more "correct" examples per category here, once.
+let aiRefRequestId=0;
+function aiRefHeader(){return `<div class="settings-section-head"><div><div class="eyebrow">AI REVIEW</div><h2>AI Reference Files</h2><p>ไฟล์ตัวอย่างที่ถูกต้องสำหรับ AI ใช้เทียบตอนพนักงานส่งงานเข้า Ready for Review แยกตามประเภทงาน</p></div></div>`}
+function renderAiReferences(root){
+ if(!AiReview.enabled){root.innerHTML=`${aiRefHeader()}${noticeBox('warning','ยังไม่ได้เชื่อมต่อ AI Review','ตั้งค่า aiReview.enabled และ aiReview.baseUrl ใน assets/js/core/config.js ให้ชี้ไปที่ worker ที่ deploy แล้วก่อน จึงจะอัปโหลด/จัดการไฟล์อ้างอิงได้')}`;return}
+ const categories=activeCategoryNames();
+ if(!categories.length){root.innerHTML=`${aiRefHeader()}${noticeBox('neutral','ยังไม่มีประเภทงาน','เพิ่มประเภทงานในแท็บ Management ก่อน จึงจะเลือกกลุ่มสำหรับไฟล์อ้างอิงได้')}`;return}
+ if(!categories.includes(ui.aiRefCategory))ui.aiRefCategory=categories[0];
+ const editable=masterCanEdit();
+ root.innerHTML=`${aiRefHeader()}
+ ${noticeBox(editable?'info':'neutral',editable?'Accounting Manager · จัดการไฟล์อ้างอิงได้':'View only · ไม่มีสิทธิ์แก้ไข',editable?'ไฟล์ที่อัปโหลดจะถูกใช้เทียบกับงานทุกชิ้นในประเภทนี้ตั้งแต่ตอนนี้เป็นต้นไป':'คุณดูรายการไฟล์อ้างอิงได้ แต่การอัปโหลด/ลบจำกัดเฉพาะ Accounting Manager / Admin')}
+ <div class="filter-panel">${filterControl('ประเภทงาน','aiRefCategory',ui.aiRefCategory,categories)}${editable?'<label class="btn primary" style="align-self:end">+ อัปโหลดไฟล์อ้างอิง<input id="aiRefUpload" type="file" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.png,.jpg,.jpeg" hidden></label>':''}</div>
+ <div class="panel" id="aiRefPanel"><div class="panel-body"><div class="empty" role="status" aria-live="polite">กำลังโหลด...</div></div></div>`;
+ document.getElementById('aiRefCategory').onchange=e=>{ui.aiRefCategory=e.target.value;renderAiReferences(root)};
+ document.getElementById('aiRefUpload')?.addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const input=e.target;input.disabled=true; // runAsyncAction's trigger must be a button — a
+  // <label> wrapping this hidden input would have its textContent swapped by runAsyncAction,
+  // which destroys the nested <input>. Disable the input itself instead and skip the trigger.
+  try{await runAsyncAction(null,()=>AiReview.service.uploadReference(ui.aiRefCategory,f))}catch(err){input.disabled=false;return}
+  toast('อัปโหลดไฟล์อ้างอิงแล้ว');renderAiReferences(root);
+ });
+ loadAiReferenceList(root,editable);
+}
+function loadAiReferenceList(root,editable){
+ const requestId=++aiRefRequestId,category=ui.aiRefCategory,panel=root.querySelector('#aiRefPanel');
+ AiReview.service.listReferences(category).then(list=>{
+  if(requestId!==aiRefRequestId||ui.aiRefCategory!==category)return;
+  panel.innerHTML=list.length?`<div class="panel-body"><div class="table-wrap"><table class="standard-table"><thead><tr><th>ไฟล์</th><th>ขนาด</th><th>อัปโหลดเมื่อ</th>${editable?'<th style="text-align:right">จัดการ</th>':''}</tr></thead><tbody>${list.map(f=>`<tr><td>${esc(f.name)}</td><td>${formatFileSize(f.size)}</td><td>${f.uploaded?formatDateTime(new Date(f.uploaded).toISOString()):'-'}</td>${editable?`<td style="text-align:right"><button class="btn small danger" data-ai-ref-delete="${esc(f.key)}">ลบ</button></td>`:''}</tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="panel-body"><div class="empty"><strong>ยังไม่มีไฟล์อ้างอิงสำหรับประเภทนี้</strong>AI จะข้ามการตรวจ (ปล่อยผ่าน) จนกว่าจะมีไฟล์ตัวอย่างอย่างน้อย 1 ไฟล์</div></div>`;
+  panel.querySelectorAll('[data-ai-ref-delete]').forEach(b=>b.onclick=async()=>{
+   if(!confirm('ลบไฟล์อ้างอิงนี้หรือไม่?'))return;
+   try{await runAsyncAction(b,()=>AiReview.service.deleteReference(b.dataset.aiRefDelete))}catch(err){return}
+   toast('ลบไฟล์อ้างอิงแล้ว');loadAiReferenceList(root,editable);
+  });
+ }).catch(err=>{
+  if(requestId!==aiRefRequestId||ui.aiRefCategory!==category)return;
+  panel.innerHTML=`<div class="panel-body">${noticeBox('danger','โหลดรายการไม่สำเร็จ',err.message||'เกิดข้อผิดพลาดในการเชื่อมต่อ')}<div style="margin-top:12px"><button class="btn primary" id="aiRefRetry">ลองอีกครั้ง</button></div></div>`;
+  document.getElementById('aiRefRetry').onclick=()=>loadAiReferenceList(root,editable);
+ });
 }
