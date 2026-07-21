@@ -42,7 +42,11 @@ const ICON_PATHS={
  chevron:'<path d="m9 18 6-6-6-6"/>'
 };
 function iconSvg(name,size=18){return `<svg class="ui-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]||ICON_PATHS.dashboard}</svg>`}
-function noticeBox(tone,title,text){
+// extraHtml is optional raw HTML appended after the main <p> (inside .notice-content) — for
+// callers with more than a one-line message (see aiReviewNotice in ui/task-detail.js). Unlike
+// title/text, extraHtml is NOT escaped here — the caller must escape any dynamic text itself
+// before building it.
+function noticeBox(tone,title,text,extraHtml=''){
  const safeTone=['neutral','info','success','warning','danger'].includes(tone)?tone:'neutral';
  const paths={
   neutral:'<circle cx="12" cy="12" r="9"/><path d="M12 10v6"/><path d="M12 7h.01"/>',
@@ -52,7 +56,7 @@ function noticeBox(tone,title,text){
   danger:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 17h.01"/>'
  };
  const role=['warning','danger'].includes(safeTone)?'alert':'note';
- return `<div class="notice-box notice-${safeTone}" role="${role}"><div class="notice-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24">${paths[safeTone]}</svg></div><div class="notice-content"><strong>${esc(title)}</strong><p>${esc(text)}</p></div></div>`;
+ return `<div class="notice-box notice-${safeTone}" role="${role}"><div class="notice-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24">${paths[safeTone]}</svg></div><div class="notice-content"><strong>${esc(title)}</strong><p>${esc(text)}</p>${extraHtml}</div></div>`;
 }
 const NAV=[
  {id:'dashboard',label:'Dashboard',icon:'dashboard',group:'Workspace'},

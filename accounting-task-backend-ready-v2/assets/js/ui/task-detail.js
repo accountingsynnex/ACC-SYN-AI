@@ -22,7 +22,14 @@ function formatFileSize(bytes){const n=Number(bytes)||0;if(n<1024)return `${n} B
 function aiReviewNotice(t){
  if(!AiReview.enabled||!t.aiReview)return '';
  const r=t.aiReview;
- return noticeBox(r.status==='pass'?'success':'warning',r.status==='pass'?'AI ตรวจผ่านก่อนส่งเข้า Ready for Review':'AI ส่งกลับ Revision อัตโนมัติ',`${esc(r.reason)} (ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)})`);
+ if(r.status==='pass'){
+  return noticeBox('success','AI ตรวจผ่านก่อนส่งเข้า Ready for Review',`${r.reason} (ไฟล์: ${r.fileName} · ${formatDateTime(r.checkedAt)})`);
+ }
+ // AI's fail reason can be a detailed, multi-point explanation (not just one sentence) — render
+ // it in its own scrollable block instead of noticeBox's plain <p>, so a long list of issues
+ // doesn't blow out the Files tab layout.
+ const detailHtml=`<div class="ai-review-notice-body">${esc(r.reason).replace(/\n/g,'<br>')}</div><p class="subtext" style="margin-top:8px">ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)}</p>`;
+ return noticeBox('warning','AI ส่งกลับ Revision อัตโนมัติ — พบข้อควรแก้ไขดังนี้','ดูรายละเอียดปัญหาที่พบด้านล่าง',detailHtml);
 }
 // Runs whenever a task is submitted into ready-review — the drawer button (bindDrawer below)
 // AND drag-and-drop onto the Ready for Review column (moveTaskToStatus in ui/shared.js) both
