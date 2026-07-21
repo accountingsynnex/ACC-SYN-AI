@@ -197,8 +197,9 @@ function openMasterModal(type,id=null){
 // ---------------- AI Reference Files ----------------
 // Reference examples the task-board-worker compares submissions against (see
 // services/ai-review-service.js and ui/task-detail.js's submitForReviewWithAiGate). Grouped by
-// category — the same value used as `taskType` when a submission is actually reviewed — so
-// managers upload one or more "correct" examples per category here, once.
+// category — the same value used as `taskType` when a submission is actually reviewed. Anyone
+// above Staff (reviewer/teamlead/manager — canManageBeyondStaff()) can upload one or more
+// "correct" examples per category here; Staff gets a read-only list.
 let aiRefRequestId=0;
 function aiRefHeader(){return `<div class="settings-section-head"><div><div class="eyebrow">AI REVIEW</div><h2>AI Reference Files</h2><p>ไฟล์ตัวอย่างที่ถูกต้องสำหรับ AI ใช้เทียบตอนพนักงานส่งงานเข้า Ready for Review แยกตามประเภทงาน</p></div></div>`}
 function renderAiReferences(root){
@@ -206,9 +207,9 @@ function renderAiReferences(root){
  const categories=activeCategoryNames();
  if(!categories.length){root.innerHTML=`${aiRefHeader()}${noticeBox('neutral','ยังไม่มีประเภทงาน','เพิ่มประเภทงานในแท็บ Management ก่อน จึงจะเลือกกลุ่มสำหรับไฟล์อ้างอิงได้')}`;return}
  if(!categories.includes(ui.aiRefCategory))ui.aiRefCategory=categories[0];
- const editable=masterCanEdit();
+ const editable=canManageBeyondStaff();
  root.innerHTML=`${aiRefHeader()}
- ${noticeBox(editable?'info':'neutral',editable?'Accounting Manager · จัดการไฟล์อ้างอิงได้':'View only · ไม่มีสิทธิ์แก้ไข',editable?'ไฟล์ที่อัปโหลดจะถูกใช้เทียบกับงานทุกชิ้นในประเภทนี้ตั้งแต่ตอนนี้เป็นต้นไป':'คุณดูรายการไฟล์อ้างอิงได้ แต่การอัปโหลด/ลบจำกัดเฉพาะ Accounting Manager / Admin')}
+ ${noticeBox(editable?'info':'neutral',editable?'จัดการไฟล์อ้างอิงได้':'View only · ไม่มีสิทธิ์แก้ไข',editable?'ไฟล์ที่อัปโหลดจะถูกใช้เทียบกับงานทุกชิ้นในประเภทนี้ตั้งแต่ตอนนี้เป็นต้นไป':'Staff ดูรายการไฟล์อ้างอิงได้อย่างเดียว การอัปโหลด/ลบทำได้จาก Reviewer ขึ้นไป')}
  <div class="filter-panel">${filterControl('ประเภทงาน','aiRefCategory',ui.aiRefCategory,categories)}${editable?'<label class="btn primary" style="align-self:end">+ อัปโหลดไฟล์อ้างอิง<input id="aiRefUpload" type="file" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.png,.jpg,.jpeg" hidden></label>':''}</div>
  <div class="panel" id="aiRefPanel"><div class="panel-body"><div class="empty" role="status" aria-live="polite">กำลังโหลด...</div></div></div>`;
  document.getElementById('aiRefCategory').onchange=e=>{ui.aiRefCategory=e.target.value;renderAiReferences(root)};

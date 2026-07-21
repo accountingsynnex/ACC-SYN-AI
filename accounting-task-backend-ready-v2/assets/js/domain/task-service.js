@@ -13,7 +13,10 @@ function canRecallReadyReview(t){
  return t.status==='ready-review'&&(ui.role==='manager'||(ui.role==='teamlead'&&t.team===u.team)||t.assignee===u.name);
 }
 function canDownloadFile(t){const u=currentUser();return ui.role==='manager'||t.team===u.team}
-function canManageAnnualTasks(){return ['reviewer','teamlead','manager'].includes(ui.role)}
+// Shared "anyone but Staff" gate — same rule Annual Task management and AI Reference Files
+// (pages/settings.js) both use; keep it in one place instead of re-listing roles per feature.
+function canManageBeyondStaff(){return ui.role!=='staff'}
+function canManageAnnualTasks(){return canManageBeyondStaff()}
 function creatableTeamCodes(){const codes=activeTeamCodes();if(ui.role==='manager')return codes;return codes.includes(currentUser().team)?[currentUser().team]:codes.slice(0,1)}
 function canCreateTaskPayload(payload){
  const u=currentUser();
