@@ -212,14 +212,21 @@ function renderAiReferences(root){
  ${noticeBox(editable?'info':'neutral',editable?'จัดการไฟล์อ้างอิงได้':'View only · ไม่มีสิทธิ์แก้ไข',editable?'ไฟล์ที่อัปโหลดจะถูกใช้เทียบกับงานทุกชิ้นในประเภทนี้ตั้งแต่ตอนนี้เป็นต้นไป':'Staff ดูรายการไฟล์อ้างอิงได้อย่างเดียว การอัปโหลด/ลบทำได้จาก Reviewer ขึ้นไป')}
  <div class="filter-panel">${filterControl('ประเภทงาน','aiRefCategory',ui.aiRefCategory,categories)}${editable?'<label class="btn primary" style="align-self:end">+ อัปโหลดไฟล์อ้างอิง<input id="aiRefUpload" type="file" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.png,.jpg,.jpeg" hidden></label>':''}</div>
  <div class="panel" id="aiRefPanel"><div class="panel-body"><div class="empty" role="status" aria-live="polite">กำลังโหลด...</div></div></div>`;
- document.getElementById('aiRefCategory').onchange=e=>{ui.aiRefCategory=e.target.value;renderAiReferences(root)};
+ // Re-render through the global render() below, not a direct renderAiReferences(root) call —
+ // same convention every other settings tab uses (see renderMasterData's tab/filter handlers).
+ // render() re-opens the settings modal and calls queueCustomSelectRefresh() itself afterwards
+ // (ui/shared.js), which is what rebuilds the custom dropdown UI around the <select> this
+ // function just wrote via innerHTML. Calling renderAiReferences(root) directly, as an earlier
+ // version of this did, skipped that step and left the category picker as a bare native <select>
+ // instead of the styled dropdown every other filter on this app uses.
+ document.getElementById('aiRefCategory').onchange=e=>{ui.aiRefCategory=e.target.value;render({resetScroll:false})};
  document.getElementById('aiRefUpload')?.addEventListener('change',async e=>{
   const f=e.target.files[0];if(!f)return;
   const input=e.target;input.disabled=true; // runAsyncAction's trigger must be a button — a
   // <label> wrapping this hidden input would have its textContent swapped by runAsyncAction,
   // which destroys the nested <input>. Disable the input itself instead and skip the trigger.
   try{await runAsyncAction(null,()=>AiReview.service.uploadReference(ui.aiRefCategory,f))}catch(err){input.disabled=false;return}
-  toast('อัปโหลดไฟล์อ้างอิงแล้ว');renderAiReferences(root);
+  toast('อัปโหลดไฟล์อ้างอิงแล้ว');render({resetScroll:false});
  });
  loadAiReferenceList(root,editable);
 }
