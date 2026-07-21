@@ -33,7 +33,7 @@ async function submitForReviewWithAiGate(t,button){
   return;
  }
  const latest=t.files[t.files.length-1];
- button.disabled=true;const prevLabel=button.textContent;button.textContent='AI กำลังตรวจ...';
+ button.disabled=true;showAiCheckingPopup();
  try{
   const blob=await BrowserFileStore.get(t.id,latest.id);
   if(!blob)throw new Error('ไม่พบไฟล์ที่อัปโหลดในเบราว์เซอร์นี้ ลองอัปโหลดไฟล์ใหม่อีกครั้ง');
@@ -60,7 +60,7 @@ async function submitForReviewWithAiGate(t,button){
  }catch(err){
   toast(err.message||'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
  }finally{
-  button.disabled=false;button.textContent=prevLabel;
+  closeAiCheckingPopup();button.disabled=false;
  }
 }
 const BrowserFileStore={
@@ -110,6 +110,19 @@ function openModal(id){
  if(id==='settingsModal')ui.settingsModalOpen=true;
  // When a child modal opens on top of the settings modal, blur the settings modal beneath it.
  else if(document.getElementById('settingsModal').classList.contains('show'))document.documentElement.classList.add('nested-modal-open');
+}
+// Non-interactive loading popup shown while submitForReviewWithAiGate awaits the AI verdict.
+// Uses its own open/close pair instead of openModal/closeModals — it has no close button and
+// must not get tangled up with closeModals' nested-settings-modal bookkeeping.
+function showAiCheckingPopup(){
+ const modal=document.getElementById('aiCheckingModal');
+ modal.innerHTML='<div class="ai-checking-body"><div class="ai-checking-spinner" aria-hidden="true"></div><strong>AI กำลังตรวจไฟล์...</strong><p class="subtext">เทียบกับไฟล์ตัวอย่างอ้างอิงของประเภทงานนี้ กรุณารอสักครู่</p></div>';
+ document.getElementById('modalBackdrop').classList.add('show');
+ modal.classList.add('show');
+}
+function closeAiCheckingPopup(){
+ document.getElementById('aiCheckingModal').classList.remove('show');
+ if(!document.querySelector('.modal.show'))document.getElementById('modalBackdrop').classList.remove('show');
 }
 function closeModals(){
  const nested=[...document.querySelectorAll('.modal.show:not(#settingsModal)')];
