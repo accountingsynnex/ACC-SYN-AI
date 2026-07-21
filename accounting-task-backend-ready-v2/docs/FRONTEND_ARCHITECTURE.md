@@ -29,12 +29,15 @@ task board — but this app only borrows the AI-comparison feature, not that boa
 schema/status vocabulary (`assigned`/`in-process`/`under-review`/`revision`/`complete`), which
 would collide with the richer model here (checklist, team, reviewer, `STATUS_ORDER`, etc.).
 
-The integration point is `POST /ai-review` on that worker (added on the `add-ai-review-endpoint`
-branch there — merge it before pointing this app at a deployed worker): takes `{taskType, file}`,
-returns the verdict, and never touches the worker's own task storage. Wired up on this side:
+The integration point is `POST /ai-review` on that worker (merged into its `main` in
+[PR #1](https://github.com/accountingsynnex/task-board-worker/pull/1), live at
+`task-board-worker.accountingsynnex.workers.dev` via Cloudflare Workers Builds' Git integration):
+takes `{taskType, file}`, returns the verdict, and never touches the worker's own task storage.
+Wired up on this side:
 
-- `core/config.js` → `ACCOUNTING_TASK_CONFIG.aiReview` (`enabled`, `baseUrl`). Disabled by default
-  — flip `enabled: true` and fill in `baseUrl` once the worker is deployed.
+- `core/config.js` → `ACCOUNTING_TASK_CONFIG.aiReview` (`enabled`, `baseUrl`) — currently
+  `enabled: true` pointing at the live worker above. Set `enabled: false` to turn this off without
+  touching any other file.
 - `services/ai-review-service.js` → `AiReviewService` (thin wrapper, same `AccountingTaskApiClient`
   used for the main API) and the `AiReview` singleton (`AiReview.enabled` / `AiReview.service`).
 - `ui/task-detail.js` → `runAiReview(t, file)` fires (not awaited) right after a file upload
@@ -43,9 +46,10 @@ returns the verdict, and never touches the worker's own task storage. Wired up o
   (`aiReviewNotice`) in the Files tab, plus one activity log line. The human reviewer in Review
   Queue still makes the real approve/revision call.
 
-Deploying the worker (KV namespaces, `GEMINI_API_KEY` secret, `wrangler deploy`) is out of scope
-here — see that repo's `wrangler.toml`. Once it's live, also tighten its `CORS_HEADERS` (currently
-`Access-Control-Allow-Origin: *`) to this app's actual origin.
+The worker's KV namespaces and `GEMINI_API_KEY` secret were configured directly in the Cloudflare
+dashboard (Workers Builds auto-deploys on push to its `main`, no local `wrangler` needed). Still
+open: its `CORS_HEADERS` allows `Access-Control-Allow-Origin: *` — tighten that to this app's
+actual GitHub Pages origin once this app has a stable custom domain or is otherwise final.
 
 ## Async repository boundary
 
