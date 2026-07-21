@@ -7,12 +7,34 @@ function drawerHtml(t){
  let body='';
  if(ui.drawerTab==='detail'){const team=teamMeta(t.team);body=`<div class="task-detail-card"><div class="task-detail-grid"><div class="task-detail-field"><span class="task-detail-label">ทีม</span><div class="task-detail-value"><span class="task-detail-team" style="--team-color:${esc(team.color)}"><i class="task-detail-team-dot"></i><span class="task-detail-team-copy"><strong>${esc(t.team)}</strong><small>${esc(team.name)}</small></span></span></div></div><div class="task-detail-field"><span class="task-detail-label">ประเภทงาน</span><div class="task-detail-value"><span class="task-detail-text" title="${esc(t.category)}">${esc(t.category)}</span></div></div><div class="task-detail-field"><span class="task-detail-label">สถานะ</span><div class="task-detail-value">${statusBadge(t.status)}</div></div><div class="task-detail-field"><span class="task-detail-label">ความสำคัญ</span><div class="task-detail-value">${priorityBadge(t.priority)}</div></div><div class="task-detail-field"><span class="task-detail-label">ผู้รับผิดชอบ</span><div class="task-detail-value">${personValue(t.assignee)}</div></div><div class="task-detail-field"><span class="task-detail-label">ผู้ตรวจ</span><div class="task-detail-value">${personValue(t.reviewer)}</div></div><div class="task-detail-field"><span class="task-detail-label">งวดบัญชี</span><div class="task-detail-value">${periodChip(t.period)}</div></div><div class="task-detail-field"><span class="task-detail-label">กำหนดส่ง</span><div class="task-detail-value">${dueDateValue(t)}</div></div></div></div>`;}
  if(ui.drawerTab==='checklist')body=`<div>${t.checklist.map(c=>`<div class="check-item"><input type="checkbox" data-check-id="${esc(c.id)}" ${c.checked?'checked':''} ${canEdit(t)?'':'disabled'}><label>${esc(c.label)} ${c.required?'<span class="required">*</span>':''}</label></div>`).join('')}</div>`;
- if(ui.drawerTab==='files'){const downloadAllowed=canDownloadFile(t);body=`${!downloadAllowed?noticeBox('warning','ดาวน์โหลดไฟล์ไม่ได้','ดาวน์โหลดได้เฉพาะไฟล์ของงานในทีมเดียวกันตามสิทธิ์ผู้ใช้'):''}<div>${t.files.length?t.files.map(f=>`<div class="file-item"><div><strong>${esc(f.name)}</strong><span class="subtext">${esc(f.type||'Submission')} · Version ${f.version}${f.size?` · ${formatFileSize(f.size)}`:''}</span></div><div class="file-actions">${downloadAllowed?`<button class="btn small" data-file-download="${f.id}">ดาวน์โหลด</button>`:'<button class="btn small" disabled>ไม่มีสิทธิ์</button>'}${canEdit(t)?`<button class="btn small danger" data-file-delete="${f.id}">ลบ</button>`:''}</div></div>`).join(''):'<div class="empty"><strong>ยังไม่มีไฟล์</strong>อัปโหลดไฟล์เพื่อทดสอบการจัดเก็บใน Browser</div>'}</div>${canEdit(t)?'<label class="btn small" style="display:inline-block;margin-top:8px">+ อัปโหลดไฟล์<input id="drawerFile" type="file" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.zip,.png,.jpg,.jpeg" hidden></label>':''}`;}
+ if(ui.drawerTab==='files'){const downloadAllowed=canDownloadFile(t);body=`${!downloadAllowed?noticeBox('warning','ดาวน์โหลดไฟล์ไม่ได้','ดาวน์โหลดได้เฉพาะไฟล์ของงานในทีมเดียวกันตามสิทธิ์ผู้ใช้'):''}${aiReviewNotice(t)}<div>${t.files.length?t.files.map(f=>`<div class="file-item"><div><strong>${esc(f.name)}</strong><span class="subtext">${esc(f.type||'Submission')} · Version ${f.version}${f.size?` · ${formatFileSize(f.size)}`:''}</span></div><div class="file-actions">${downloadAllowed?`<button class="btn small" data-file-download="${f.id}">ดาวน์โหลด</button>`:'<button class="btn small" disabled>ไม่มีสิทธิ์</button>'}${canEdit(t)?`<button class="btn small danger" data-file-delete="${f.id}">ลบ</button>`:''}</div></div>`).join(''):'<div class="empty"><strong>ยังไม่มีไฟล์</strong>อัปโหลดไฟล์เพื่อทดสอบการจัดเก็บใน Browser</div>'}</div>${canEdit(t)?'<label class="btn small" style="display:inline-block;margin-top:8px">+ อัปโหลดไฟล์<input id="drawerFile" type="file" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.zip,.png,.jpg,.jpeg" hidden></label>':''}`;}
  if(ui.drawerTab==='activity')body=t.activity.slice().reverse().map(a=>`<div class="activity-item"><strong>${esc(a.action)}</strong><span>${esc(a.by)} · ${formatDateTime(a.at)}</span></div>`).join('');
  const actions=allowedTargets(t).map(s=>`<button class="btn ${s==='revision'?'danger':s==='approved'?'success':'primary'}" data-transition="${s}">${s==='revision'?'ตีกลับ':STATUS[s].label}</button>`).join('');
  return `<div class="drawer-head"><div><div class="eyebrow">${t.id}</div><h2>${esc(t.title)}</h2><div class="entity-row">${teamChip(t.team)}${categoryChip(t.category)}${statusBadge(t.status)}</div></div><button class="close-btn" id="drawerClose">×</button></div><div class="drawer-body"><div class="drawer-tabs">${tabs.map(([id,l])=>`<button class="drawer-tab ${ui.drawerTab===id?'active':''}" data-drawer-tab="${id}">${l}</button>`).join('')}</div>${body}</div><div class="drawer-foot">${canEdit(t)?'<button class="btn" id="editTaskBtn">แก้ไขงาน</button>':''}${actions}</div>`
 }
 function formatFileSize(bytes){const n=Number(bytes)||0;if(n<1024)return `${n} B`;if(n<1048576)return `${(n/1024).toFixed(1)} KB`;return `${(n/1048576).toFixed(1)} MB`}
+// AI review is an advisory annotation from the task-board-worker Gemini comparison (see
+// services/ai-review-service.js) — not part of the workflow state machine. It never blocks a
+// submission or changes task.status; the reviewer still makes the real call in Review Queue.
+function aiReviewNotice(t){
+ if(!AiReview.enabled||!t.aiReview)return '';
+ const r=t.aiReview;
+ if(r.checking)return noticeBox('info','AI กำลังตรวจไฟล์...','เทียบกับไฟล์ตัวอย่างอ้างอิงของประเภทงานนี้ ระบบจะไม่บล็อกการอัปโหลด');
+ return noticeBox(r.status==='pass'?'success':'warning',r.status==='pass'?'AI ตรวจแล้ว: ดูสมบูรณ์':'AI ตรวจแล้ว: พบข้อสังเกต',`${esc(r.reason)} (ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)}) — ผลนี้เป็นแค่ข้อเสนอ ผู้ตรวจยังต้องพิจารณาเองใน Review Queue`);
+}
+async function runAiReview(t,file){
+ if(!AiReview.enabled)return;
+ t.aiReview={checking:true};openTask(t.id,'files');
+ try{
+  const verdict=await AiReview.service.reviewFile(t.category,file);
+  t.aiReview={status:verdict.status==='pass'?'pass':'fail',reason:verdict.reason||'',fileName:file.name,checkedAt:new Date().toISOString()};
+  t.activity.push({at:t.aiReview.checkedAt,action:`🤖 AI ตรวจไฟล์ ${file.name}: ${t.aiReview.status==='pass'?'ผ่าน':'พบข้อสังเกต'} — ${t.aiReview.reason}`,by:'AI Review'});
+ }catch(err){
+  t.aiReview={status:'fail',reason:'เรียก AI ตรวจไม่สำเร็จ (เช็คว่า worker ตั้งค่า/deploy ไว้แล้ว): '+err.message,fileName:file.name,checkedAt:new Date().toISOString()};
+ }
+ Store.save();
+ if(document.getElementById('taskDrawer').classList.contains('show'))openTask(t.id,'files');
+}
 const BrowserFileStore={
  memory:new Map(),
  key(taskId,fileId){return `${taskId}:${fileId}`},
@@ -50,7 +72,7 @@ function bindDrawer(t){
  document.getElementById('editTaskBtn')?.addEventListener('click',()=>openTaskModal(t.id));
  document.querySelectorAll('[data-file-download]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await downloadTaskFile(t.id,button.dataset.fileDownload)}catch(err){toast(err.message)}finally{button.disabled=false}});
  document.querySelectorAll('[data-file-delete]').forEach(button=>button.onclick=async()=>{if(!confirm('ลบไฟล์นี้หรือไม่?'))return;try{const file=TaskService.removeFile(t.id,button.dataset.fileDelete);await BrowserFileStore.remove(t.id,file.id);openTask(t.id,'files');toast('ลบไฟล์แล้ว')}catch(err){toast(err.message)}});
- document.getElementById('drawerFile')?.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast('ไฟล์ต้องมีขนาดไม่เกิน 10 MB');return}const meta={id:uid('F'),name:f.name,type:'Submission',version:t.files.length+1,size:f.size,uploadedAt:new Date().toISOString()};try{await BrowserFileStore.put(t.id,meta.id,f);TaskService.addFile(t.id,meta);openTask(t.id,'files');toast('อัปโหลดไฟล์แล้ว')}catch(err){toast(err.message)}})
+ document.getElementById('drawerFile')?.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast('ไฟล์ต้องมีขนาดไม่เกิน 10 MB');return}const meta={id:uid('F'),name:f.name,type:'Submission',version:t.files.length+1,size:f.size,uploadedAt:new Date().toISOString()};try{await BrowserFileStore.put(t.id,meta.id,f);TaskService.addFile(t.id,meta);openTask(t.id,'files');toast('อัปโหลดไฟล์แล้ว');runAiReview(t,f)}catch(err){toast(err.message)}})
 }
 function openModal(id){
  document.getElementById('modalBackdrop').classList.add('show');

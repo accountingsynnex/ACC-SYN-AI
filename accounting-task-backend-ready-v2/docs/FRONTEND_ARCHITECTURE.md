@@ -18,6 +18,34 @@ The application uses ordered classic scripts. This keeps the existing shared lex
 | Pages | `pages/*.js` | one workspace per file |
 | Runtime | `ui/runtime.js` | notifications, selects, scrolling, diagnostics and bootstrap |
 | Backend adapter | `services/api-task-service.js` | asynchronous API repository matching `docs/OPENAPI.yaml` |
+| AI review adapter | `services/ai-review-service.js` | client for the separate task-board-worker AI file-review endpoint |
+
+## AI file review (task-board-worker)
+
+[`task-board-worker`](https://github.com/accountingsynnex/task-board-worker) is a separate
+Cloudflare Worker (its own repo) that compares a submitted file against admin-uploaded reference
+examples with Gemini and returns `{status: 'pass'|'fail', reason}`. It also runs its own tiny
+task board — but this app only borrows the AI-comparison feature, not that board or its task
+schema/status vocabulary (`assigned`/`in-process`/`under-review`/`revision`/`complete`), which
+would collide with the richer model here (checklist, team, reviewer, `STATUS_ORDER`, etc.).
+
+The integration point is `POST /ai-review` on that worker (added on the `add-ai-review-endpoint`
+branch there — merge it before pointing this app at a deployed worker): takes `{taskType, file}`,
+returns the verdict, and never touches the worker's own task storage. Wired up on this side:
+
+- `core/config.js` → `ACCOUNTING_TASK_CONFIG.aiReview` (`enabled`, `baseUrl`). Disabled by default
+  — flip `enabled: true` and fill in `baseUrl` once the worker is deployed.
+- `services/ai-review-service.js` → `AiReviewService` (thin wrapper, same `AccountingTaskApiClient`
+  used for the main API) and the `AiReview` singleton (`AiReview.enabled` / `AiReview.service`).
+- `ui/task-detail.js` → `runAiReview(t, file)` fires (not awaited) right after a file upload
+  succeeds, using `t.category` as the worker's `taskType`. It never blocks the upload or changes
+  `t.status` — the verdict is stored on `t.aiReview` and rendered as an advisory notice
+  (`aiReviewNotice`) in the Files tab, plus one activity log line. The human reviewer in Review
+  Queue still makes the real approve/revision call.
+
+Deploying the worker (KV namespaces, `GEMINI_API_KEY` secret, `wrangler deploy`) is out of scope
+here — see that repo's `wrangler.toml`. Once it's live, also tighten its `CORS_HEADERS` (currently
+`Access-Control-Allow-Origin: *`) to this app's actual origin.
 
 ## Async repository boundary
 

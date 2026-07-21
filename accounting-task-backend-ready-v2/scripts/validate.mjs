@@ -52,6 +52,7 @@ const expectedOrder = [
   'assets/js/core/config.js',
   'assets/js/services/http-client.js',
   'assets/js/services/api-task-service.js',
+  'assets/js/services/ai-review-service.js',
   'assets/js/core/constants.js',
   'assets/js/data/local-state.js',
   'assets/js/domain/task-service.js',
