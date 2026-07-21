@@ -61,7 +61,14 @@ const LocalTaskService={
  downloadFile(id,fileId){const t=this.get(id);if(!t)throw new Error('ไม่พบงาน');if(!canDownloadFile(t))throw new Error('ดาวน์โหลดได้เฉพาะไฟล์ของงานในทีมเดียวกัน');const file=t.files.find(x=>x.id===fileId);if(!file)throw new Error('ไม่พบไฟล์');return {task:t,file}},
  addFile(id,file){const t=this.get(id);if(!t)throw new Error('ไม่พบงาน');if(!canEdit(t))throw new Error('ไม่มีสิทธิ์อัปโหลดไฟล์');t.files.push(file);t.updatedAt=new Date().toISOString();t.activity.push({at:t.updatedAt,action:`อัปโหลดไฟล์ ${file.name}`,by:currentUser().name});Store.save();return file},
  removeFile(id,fileId){const t=this.get(id);if(!t)throw new Error('ไม่พบงาน');if(!canEdit(t))throw new Error('ไม่มีสิทธิ์ลบไฟล์');const file=t.files.find(x=>x.id===fileId);if(!file)throw new Error('ไม่พบไฟล์');t.files=t.files.filter(x=>x.id!==fileId);t.updatedAt=new Date().toISOString();t.activity.push({at:t.updatedAt,action:`ลบไฟล์ ${file.name}`,by:currentUser().name});Store.save();return file},
- transition(id,target,note=''){const t=this.get(id);if(!t||!allowedTargets(t).includes(target))throw new Error('ไม่มีสิทธิ์หรือไม่เป็นไปตาม Workflow');if(target==='ready-review'&&!requiredComplete(t))throw new Error('Checklist บังคับยังไม่ครบ');const previous=t.status;t.status=target;t.updatedAt=new Date().toISOString();if(target==='ready-review')t.submittedAt=t.updatedAt;if(previous==='ready-review'&&target==='in-progress')t.submittedAt=null;const action=previous==='ready-review'&&target==='in-progress'?'ถอนงานจาก Ready for Review กลับไปทำต่อ (In Progress)':`เปลี่ยนสถานะเป็น ${STATUS[target].label}`;t.activity.push({at:t.updatedAt,action:`${action}${note?` — ${note}`:''}`,by:currentUser().name});Store.save();return t}
+ transition(id,target,note=''){const t=this.get(id);if(!t||!allowedTargets(t).includes(target))throw new Error('ไม่มีสิทธิ์หรือไม่เป็นไปตาม Workflow');if(target==='ready-review'&&!requiredComplete(t))throw new Error('Checklist บังคับยังไม่ครบ');const previous=t.status;t.status=target;t.updatedAt=new Date().toISOString();if(target==='ready-review')t.submittedAt=t.updatedAt;if(previous==='ready-review'&&target==='in-progress')t.submittedAt=null;const action=previous==='ready-review'&&target==='in-progress'?'ถอนงานจาก Ready for Review กลับไปทำต่อ (In Progress)':`เปลี่ยนสถานะเป็น ${STATUS[target].label}`;t.activity.push({at:t.updatedAt,action:`${action}${note?` — ${note}`:''}`,by:currentUser().name});Store.save();return t},
+ updateChecklistItem(id,itemId,checked,actor=currentUser().name){
+  const t=this.get(id);if(!t)throw new Error('ไม่พบงาน');if(!canEdit(t))throw new Error('ไม่มีสิทธิ์แก้ไข Checklist ในสถานะนี้');
+  const item=t.checklist.find(x=>x.id===itemId);if(!item)throw new Error('ไม่พบ Checklist');
+  item.checked=Boolean(checked);t.updatedAt=new Date().toISOString();
+  t.activity.push({at:t.updatedAt,action:`${item.checked?'ทำ Checklist เสร็จ':'ยกเลิก Checklist'}: ${item.label}`,by:actor});
+  Store.save();return t;
+ }
 };
 
 // Repository boundary used by the UI. Replace with an API-backed adapter during integration.
@@ -75,7 +82,8 @@ const AsyncTaskRepository = {
   repo: TaskService,
   async list(filters = {}) { return this.repo.list(filters); },
   async get(id) { return this.repo.get(id); },
-  async transition(id, target, note = '') { return this.repo.transition(id, target, note); }
+  async transition(id, target, note = '') { return this.repo.transition(id, target, note); },
+  async updateChecklistItem(id, itemId, checked) { return this.repo.updateChecklistItem(id, itemId, checked); }
 };
 
 function matchTask(t,f){

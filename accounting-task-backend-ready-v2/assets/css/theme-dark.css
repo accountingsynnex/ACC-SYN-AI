@@ -9,7 +9,7 @@ html[data-theme="dark"]{
   color-scheme:dark;
   --bg:#000000;--surface:#151517;--surface-solid:#151517;--surface-soft:#232326;
   --line:rgba(255,255,255,.09);--line-strong:rgba(255,255,255,.15);
-  --text:#F5F5F7;--text2:#E5E5EA;--muted:#A1A1A6;--faint:#6E6E73;
+  --text:#F5F5F7;--text2:#E5E5EA;--muted:#A1A1A6;--faint:#9B9BA0;
   --blue:#0A84FF;--blue-2:#64D2FF;--green:#30D158;--green-2:#32D74B;
   --orange:#FF9F0A;--red:#FF453A;--purple:#BF5AF2;--teal:#40C8E0;--gray:#8E8E93;
   --ds-border:#2C2C2E;--ds-border-strong:#3A3A3C;--ds-surface:#151517;
@@ -409,7 +409,7 @@ html[data-theme="dark"] .page-btn.active{background:#0A84FF!important;border-col
 
 
 
-html[data-theme="dark"]{--muted:#B0B0B5;--faint:#7D7D82}
+html[data-theme="dark"]{--muted:#B0B0B5;--faint:#A0A0A5}
 html[data-theme="dark"] .dashboard-panel::before,
 html[data-theme="dark"] .closing-panel::after,
 html[data-theme="dark"] .kpi::before,
@@ -434,7 +434,7 @@ html[data-theme="dark"]{
   --text:#F2F2F5!important;
   --text2:#E3E3E7!important;
   --muted:#C2C3C8!important;
-  --faint:#96979D!important;
+  --faint:#A3A4AA!important;
   --ds-border:#494A51!important;
   --ds-border-strong:#5A5B63!important;
   --ds-surface:#303137!important;

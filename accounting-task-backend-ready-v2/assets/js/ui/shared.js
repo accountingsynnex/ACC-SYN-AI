@@ -1,6 +1,40 @@
 // Navigation shell, shared render helpers, table components and dialog utilities
 
 function toast(msg){const e=document.createElement('div');e.className='toast';e.textContent=msg;document.getElementById('toastWrap').appendChild(e);setTimeout(()=>e.remove(),2700)}
+
+// Async action boundary for backend calls: disables the trigger while pending, keeps the
+// prior local state untouched on failure, and routes HTTP 409 (stale version) to a conflict
+// dialog instead of a generic error toast. Views wired through ApiTaskService should call
+// user-triggered mutations (transition, checklist update, ...) through this helper rather
+// than mutating local state directly, so a rejected call never overwrites what is on screen.
+async function runAsyncAction(trigger,action,{onConflict,retryLabel='ลองใหม่'}={}){
+ if(trigger){trigger.disabled=true;trigger.dataset.prevLabel=trigger.dataset.prevLabel??trigger.textContent;trigger.textContent='กำลังบันทึก...'}
+ try{
+  const result=await action();
+  return result;
+ }catch(err){
+  if(err?.status===409){showConflictModal(onConflict)}
+  else{showRetryToast(err?.message||'บันทึกไม่สำเร็จ กรุณาลองใหม่',()=>runAsyncAction(trigger,action,{onConflict,retryLabel}),retryLabel)}
+  throw err;
+ }finally{
+  if(trigger){trigger.disabled=false;trigger.textContent=trigger.dataset.prevLabel;delete trigger.dataset.prevLabel}
+ }
+}
+function showRetryToast(message,onRetry,retryLabel){
+ const e=document.createElement('div');e.className='toast toast-retry';
+ e.innerHTML=`<span>${esc(message)}</span>`;
+ const btn=document.createElement('button');btn.className='toast-retry-btn';btn.textContent=retryLabel;
+ btn.onclick=()=>{e.remove();onRetry()};
+ e.appendChild(btn);
+ document.getElementById('toastWrap').appendChild(e);setTimeout(()=>e.remove(),6000);
+}
+function showConflictModal(onReload){
+ const modal=document.getElementById('conflictModal');
+ if(!modal){toast('ข้อมูลถูกแก้ไขจากผู้ใช้อื่น กรุณาโหลดข้อมูลล่าสุด');onReload?.();return}
+ modal.innerHTML=`<div class="modal-head"><div><h2>ข้อมูลมีการเปลี่ยนแปลง</h2><span class="subtext">มีผู้ใช้อื่นบันทึกงานนี้ไปแล้วหลังจากที่คุณเปิดดู</span></div></div><div class="modal-body"><p style="color:var(--muted);line-height:1.6">การแก้ไขของคุณยังไม่ถูกบันทึก เพื่อป้องกันข้อมูลทับกัน กรุณาโหลดข้อมูลล่าสุดก่อนแก้ไขต่อ</p></div><div class="modal-foot"><button class="btn primary" id="conflictReload">โหลดข้อมูลล่าสุด</button></div>`;
+ modal.querySelector('#conflictReload').onclick=()=>{closeModals();onReload?.()};
+ openModal('conflictModal');
+}
 function pageTitle(page){return ({dashboard:'Dashboard','my-tasks':'My Tasks','team-board':'Team Board','review-queue':'Review Queue','closing-calendar':'Closing Calendar'})[page]||'Accounting Task'}
 function navigate(page){location.hash=page}
 function parseRoute(){
