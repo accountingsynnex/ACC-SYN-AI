@@ -23,10 +23,25 @@ The application uses ordered classic scripts. This keeps the existing shared lex
 
 `domain/task-service.js` exposes two repositories:
 
-- `TaskService` — the synchronous `LocalTaskService` the legacy pages still read from directly.
-- `AsyncTaskRepository` — a thin async wrapper (`list`/`get`/`transition`/`updateChecklistItem` return
-  Promises). During integration, point its `repo` field at an `ApiTaskService` instance and any page
-  or mutation already going through it keeps working unchanged.
+- `TaskService` — the synchronous `LocalTaskService`.
+- `AsyncTaskRepository` — a thin async wrapper (`list`/`get`/`create`/`update`/`transition`/
+  `updateChecklistItem` return Promises). Every method forwards to `this.repo` with the same
+  name and argument shape that `ApiTaskService` (`services/api-task-service.js`) implements, so
+  `AsyncTaskRepository.repo = new ApiTaskService(client)` is the entire integration step for
+  task CRUD/workflow — no call-site changes anywhere in `ui/` or `pages/`. Keep any new
+  `LocalTaskService` method's name and argument order identical in `ApiTaskService` when you add
+  one, or this parity breaks silently.
+
+All task mutations the user can trigger (transitions, checklist toggles, create/update, bulk
+edits) go through `AsyncTaskRepository` wrapped in `runAsyncAction(triggerElement, action,
+{ onConflict })` (`ui/shared.js`) — never by mutating a task object directly. This is what gives
+every mutation the same disable-while-pending / revert-on-failure / conflict-modal behavior
+instead of each page inventing its own. See `ui/task-detail.js` (checklist, transitions, task
+editor), `pages/review-queue.js` (approve/take/reject), `pages/team-board.js` (drag-and-drop via
+`moveTaskToStatus` in `ui/shared.js`, bulk edit) and `pages/settings.js` (generate task from
+Annual Task) for the reference wiring — they were four different ad-hoc implementations of the
+same "change a task, handle failure" logic before this pass; add new mutations the same way
+rather than writing a fifth.
 
 All five workspace pages (Dashboard, My Tasks, Team Board, Review Queue, Closing Calendar) load through
 one shared helper, `renderAsyncPage(root, requestKey, eyebrow, title, onReady)` in `ui/shared.js`. It
@@ -42,27 +57,32 @@ The two kanban boards (My Tasks board view, Team Board) similarly share one rend
 per-status columns, cards, empty state and horizontal-scroll wrapper are identical between the two;
 only pagination ("load more" chip) and whether the team chip shows on each card differ.
 
-Async mutations follow the same rule: route user-triggered writes (workflow transitions, checklist
-updates) through `runAsyncAction(triggerElement, () => AsyncTaskRepository.xyz(...), { onConflict })`
-in `ui/shared.js`, not by mutating local state directly. It disables the trigger while the call is in
-flight, reverts optimistic UI on failure, and routes an HTTP 409 to a blocking "reload the task"
-dialog (`showConflictModal`, `#conflictModal` in `index.html`) instead of a generic error toast. See
-`ui/task-detail.js` for the reference wiring on checklist items and transition buttons.
+`runAsyncAction` (not just `#conflictModal` — see above) disables the trigger while the call is in
+flight, reverts optimistic UI on failure instead of trusting it, and routes an HTTP 409 to the
+blocking `showConflictModal()` reload prompt instead of a generic error toast.
 
-The pages currently still read from the synchronous `state` cache to render each view (initial-load
-migration only). The remaining integration step is to move the other mutations (bulk edits,
-create/update, master data, annual tasks) through `AsyncTaskRepository`/`ApiTaskService` +
-`runAsyncAction` the same way, then retire `LocalTaskService`.
+The pages still read from the synchronous `state` cache to render each view once the initial load
+succeeds (only the *mutations* are async so far, not the render path). What's still outside this
+pattern: master data (teams/categories) and Annual Task template CRUD in `pages/settings.js` mutate
+`state.masterData`/`state.templates` directly — there is no `LocalTaskService`-equivalent repository
+for them yet. Add one (`MasterDataService`, `AsyncMasterDataRepository`, mirrored in
+`ApiTaskService` or a sibling class) before wiring those through `runAsyncAction`, rather than
+special-casing direct state mutation inside `runAsyncAction` calls.
 
 ## Backend migration path
 
 1. Implement authentication and `GET /me`.
 2. Hydrate a client cache from `GET /tasks` and master-data endpoints.
-3. Replace LocalTaskService mutations one feature at a time with `ApiTaskService` calls.
-4. Add loading, empty, retry and field-error states around each migrated page.
-5. Remove the demonstration role selector when real identity is available.
-6. Move all authorization and workflow decisions to the server; keep browser checks for guidance only.
-7. Add end-to-end tests before consolidating the remaining historical CSS cascade.
+3. Swap `AsyncTaskRepository.repo` for a real `ApiTaskService` instance — task list/get/create/
+   update/transition/checklist already route through it from every page, so this is the point
+   where the app starts talking to the real backend for tasks.
+4. Add a matching repository + `ApiTaskService`-equivalent methods for master data (teams,
+   categories, Annual Task templates) and migrate `pages/settings.js` onto it the same way.
+5. Add field-level error display for structured validation failures (currently only the top-level
+   error message surfaces via `runAsyncAction`'s retry toast).
+6. Remove the demonstration role selector when real identity is available.
+7. Move all authorization and workflow decisions to the server; keep browser checks for guidance only.
+8. Add end-to-end tests before consolidating the remaining historical CSS cascade.
 
 ## Coding rules for new work
 

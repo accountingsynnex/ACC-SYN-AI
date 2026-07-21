@@ -15,7 +15,14 @@ class ApiTaskService {
     return this.client.get('/me');
   }
 
-  listTasks(filters = {}) {
+  /**
+   * These five methods (list/get/create/update/transition) plus updateChecklistItem below are
+   * the contract AsyncTaskRepository proxies to. Their names and argument shapes intentionally
+   * match LocalTaskService in domain/task-service.js one-for-one, so swapping
+   * `AsyncTaskRepository.repo` from a LocalTaskService instance to an ApiTaskService instance is
+   * a one-line change with no call-site updates anywhere in ui/ or pages/.
+   */
+  list(filters = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '' && value !== 'all') {
@@ -26,19 +33,19 @@ class ApiTaskService {
     return this.client.get(`/tasks${suffix}`);
   }
 
-  getTask(taskId) {
+  get(taskId) {
     return this.client.get(`/tasks/${encodeURIComponent(taskId)}`);
   }
 
-  createTask(payload) {
+  create(payload) {
     return this.client.post('/tasks', payload);
   }
 
-  updateTask(taskId, payload) {
+  update(taskId, payload) {
     return this.client.patch(`/tasks/${encodeURIComponent(taskId)}`, payload);
   }
 
-  transitionTask(taskId, targetStatus, { reason = null, version } = {}) {
+  transition(taskId, targetStatus, { reason = null, version } = {}) {
     return this.client.post(`/tasks/${encodeURIComponent(taskId)}/transitions`, {
       targetStatus,
       reason,
@@ -46,13 +53,16 @@ class ApiTaskService {
     });
   }
 
-  updateChecklistItem(taskId, itemId, checked, version) {
+  updateChecklistItem(taskId, itemId, checked, { version } = {}) {
     return this.client.patch(
       `/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(itemId)}`,
       { checked, version }
     );
   }
 
+  // File transfer has no LocalTaskService equivalent (the local demo keeps metadata only and
+  // stores bytes in IndexedDB — see BrowserFileStore in ui/task-detail.js), so these keep their
+  // own names rather than forcing a match to addFile/removeFile.
   uploadFile(taskId, file, metadata = {}) {
     const body = new FormData();
     body.append('file', file);

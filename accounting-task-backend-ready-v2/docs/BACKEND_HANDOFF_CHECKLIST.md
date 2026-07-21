@@ -25,12 +25,16 @@
       not a security control and must never be reachable in production.
 - [x] Loading and retry states visible — `runAsyncAction()` in `assets/js/ui/shared.js` disables
       the trigger and shows a pending label while a call is in flight, and surfaces a retry
-      action on failure. Wired into checklist updates and workflow transitions in
-      `assets/js/ui/task-detail.js`; extend the same helper to any other view migrated onto
-      `ApiTaskService`.
-- [x] API failures do not silently overwrite local state — checklist checkboxes and workflow
-      buttons only apply the change locally after the call resolves; on failure the checkbox
-      reverts to the last known-good value instead of trusting the optimistic UI state.
+      action on failure. Wired into every task mutation the user can trigger: checklist toggles,
+      workflow transitions (drawer buttons, reject reason, drag-and-drop, review-queue
+      approve/take/reject), task create/update, bulk edit, and generating a task from an Annual
+      Task template. Master data (teams/categories/Annual Task templates in
+      `pages/settings.js`) is **not** migrated yet — no `LocalTaskService`-equivalent repository
+      exists for it — so those still mutate local state directly; see
+      `docs/FRONTEND_ARCHITECTURE.md` for the follow-up.
+- [x] API failures do not silently overwrite local state — every mutation above applies its
+      change only after the call resolves; on failure the UI reverts to the last known-good value
+      instead of trusting an optimistic update.
 - [x] Stale-version conflicts are surfaced to the user — an HTTP 409 response routes to
       `showConflictModal()` (`#conflictModal` in `index.html`), which blocks further edits until
       the user reloads the task. The backend must return 409 with the current version on a

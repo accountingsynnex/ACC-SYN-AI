@@ -30,5 +30,10 @@ function renderReviewQueueView(root){
  document.querySelectorAll('[data-review-kpi]').forEach(card=>card.onclick=()=>{const key=card.dataset.reviewKpi;f.kpi=f.kpi===key?null:key;f.status='all';ui.pageNo.review=1;render({resetScroll:false})});
  document.querySelectorAll('[data-page-key="review"]').forEach(button=>button.onclick=()=>{ui.pageNo.review=Number(button.dataset.pageNo)||1;render({resetScroll:false})});
  document.querySelectorAll('[data-task-open]').forEach(x=>x.onclick=()=>openTask(x.dataset.taskOpen));
- document.querySelectorAll('[data-review-action]').forEach(b=>b.onclick=()=>{const t=TaskService.get(b.dataset.id);if(b.dataset.reviewAction==='reject')return openRejectModal(t.id);const target=b.dataset.reviewAction==='take'?'under-review':'approved';try{TaskService.transition(t.id,target);render({resetScroll:false});toast(`ดำเนินการ ${STATUS[target].label} แล้ว`)}catch(e){toast(e.message)}})
+ document.querySelectorAll('[data-review-action]').forEach(b=>b.onclick=async()=>{
+  const t=TaskService.get(b.dataset.id);if(b.dataset.reviewAction==='reject')return openRejectModal(t.id);
+  const target=b.dataset.reviewAction==='take'?'under-review':'approved';
+  try{await runAsyncAction(b,()=>AsyncTaskRepository.transition(t.id,target),{onConflict:()=>render({resetScroll:false})})}catch(err){return}
+  render({resetScroll:false});toast(`ดำเนินการ ${STATUS[target].label} แล้ว`)
+ })
 }

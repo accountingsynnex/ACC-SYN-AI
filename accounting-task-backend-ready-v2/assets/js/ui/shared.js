@@ -241,7 +241,7 @@ function keepMovedTaskVisible(t,target){
  }
  pendingBoardReveal={id:t.id,status:target};
 }
-function moveTaskToStatus(id,target,source='board'){
+async function moveTaskToStatus(id,target,source='board'){
  const t=TaskService.get(id);if(!t)return;
  const valid=allowedTargets(t);
  if(!valid.includes(target)){
@@ -250,9 +250,9 @@ function moveTaskToStatus(id,target,source='board'){
  }
  if(target==='revision'){openRejectModal(id);return}
  try{
-  TaskService.transition(id,target);
-  keepMovedTaskVisible(t,target);
-  render({resetScroll:false});
-  toast(`ย้ายเป็น ${STATUS[target].label} แล้ว`);
- }catch(err){toast(err.message)}
+  await runAsyncAction(null,()=>AsyncTaskRepository.transition(id,target),{onConflict:()=>render({resetScroll:false})});
+ }catch(err){return}
+ keepMovedTaskVisible(t,target);
+ render({resetScroll:false});
+ toast(`ย้ายเป็น ${STATUS[target].label} แล้ว`);
 }

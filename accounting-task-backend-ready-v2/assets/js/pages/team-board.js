@@ -23,14 +23,18 @@ function bulkAction(action){
  if(!chosen.length){toast('ไม่มีรายการที่แก้ไขได้');return}
  openBulkModal(action,chosen);
 }
-function applyBulkUpdate(action,chosen,value){
- if(action==='priority'){if(!['low','normal','high','critical'].includes(value))return false;chosen.forEach(t=>t.priority=value)}
- else if(action==='assignee'){if(!value||!String(value).trim())return false;chosen.forEach(t=>t.assignee=String(value).trim())}
- else if(action==='due'){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;chosen.forEach(t=>t.dueDate=value)}
- else return false;
- const now=new Date().toISOString();
- chosen.forEach(t=>{t.updatedAt=now;t.activity.push({at:now,action:`Bulk update: ${action}`,by:currentUser().name})});
- Store.save();ui.selected.clear();render();toast(`อัปเดต ${chosen.length} รายการแล้ว`);
+function bulkPatch(action,value){
+ if(action==='priority'&&['low','normal','high','critical'].includes(value))return{priority:value};
+ if(action==='assignee'&&String(value||'').trim())return{assignee:String(value).trim()};
+ if(action==='due'&&/^\d{4}-\d{2}-\d{2}$/.test(value))return{dueDate:value};
+ return null;
+}
+async function applyBulkUpdate(trigger,action,chosen,value){
+ const patch=bulkPatch(action,value);if(!patch){toast('ค่าที่กรอกไม่ถูกต้อง');return false}
+ try{
+  await runAsyncAction(trigger,()=>Promise.all(chosen.map(t=>AsyncTaskRepository.update(t.id,patch))));
+ }catch(err){return false} // the async boundary already surfaced the failure; keep the dialog open for retry
+ ui.selected.clear();render();toast(`อัปเดต ${chosen.length} รายการแล้ว`);
  return true;
 }
 function openBulkModal(action,chosen){
@@ -42,7 +46,7 @@ function openBulkModal(action,chosen){
  else if(action==='due')field=`<div class="field"><label>กำหนดส่งใหม่</label><input class="control" type="date" name="value" value="${defaultDueDate()}" required></div>`;
  modal.innerHTML=`<div class="modal-head"><div><h2>${titles[action]||'อัปเดตหลายรายการ'}</h2><span class="subtext">มีผลกับ ${chosen.length} รายการที่เลือก</span></div><button class="close-btn" data-close-modal>×</button></div><form id="bulkForm"><div class="modal-body"><div class="form-grid">${field}</div></div><div class="modal-foot"><button type="button" class="btn" data-close-modal>ยกเลิก</button><button class="btn primary" type="submit">ยืนยัน</button></div></form>`;
  modal.querySelectorAll('[data-close-modal]').forEach(b=>b.onclick=closeModals);
- modal.querySelector('#bulkForm').onsubmit=e=>{e.preventDefault();const value=new FormData(e.target).get('value');if(applyBulkUpdate(action,chosen,value))closeModals();else toast('ค่าที่กรอกไม่ถูกต้อง')};
+ modal.querySelector('#bulkForm').onsubmit=async e=>{e.preventDefault();const submitBtn=modal.querySelector('button[type=submit]');const value=new FormData(e.target).get('value');if(await applyBulkUpdate(submitBtn,action,chosen,value))closeModals()};
  openModal('taskModal');queueCustomSelectRefresh();
 }
 let activeDragTaskId=null,dragClickLock=false;
