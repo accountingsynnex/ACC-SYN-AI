@@ -24,16 +24,21 @@ function aiReviewNotice(t){
  const r=t.aiReview;
  return noticeBox(r.status==='pass'?'success':'warning',r.status==='pass'?'AI ตรวจผ่านก่อนส่งเข้า Ready for Review':'AI ส่งกลับ Revision อัตโนมัติ',`${esc(r.reason)} (ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)})`);
 }
-// Runs on the "ready-review" button specifically (see bindDrawer below), not on every upload.
-async function submitForReviewWithAiGate(t,button){
+// Runs whenever a task is submitted into ready-review — the drawer button (bindDrawer below)
+// AND drag-and-drop onto the Ready for Review column (moveTaskToStatus in ui/shared.js) both
+// call this instead of transitioning directly, so the AI gate applies no matter how the user
+// submits. Not run on every upload, only at the actual submit moment. `trigger` is the button
+// to disable while pending, or null for the drag-and-drop path (no button to disable).
+async function submitForReviewWithAiGate(t,trigger){
  if(!t.files.length){toast('กรุณาอัปโหลดไฟล์ก่อนส่งตรวจ');return}
  if(!AiReview.enabled){
-  try{await runAsyncAction(button,()=>AsyncTaskRepository.transition(t.id,'ready-review'),{onConflict:()=>openTask(t.id)})}catch(err){return}
+  try{await runAsyncAction(trigger,()=>AsyncTaskRepository.transition(t.id,'ready-review'),{onConflict:()=>openTask(t.id)})}catch(err){return}
   toast('ส่งตรวจแล้ว');closeDrawer();render({resetScroll:false});
   return;
  }
  const latest=t.files[t.files.length-1];
- button.disabled=true;showAiCheckingPopup();
+ if(trigger)trigger.disabled=true;
+ showAiCheckingPopup();
  try{
   const blob=await BrowserFileStore.get(t.id,latest.id);
   if(!blob)throw new Error('ไม่พบไฟล์ที่อัปโหลดในเบราว์เซอร์นี้ ลองอัปโหลดไฟล์ใหม่อีกครั้ง');
@@ -60,7 +65,7 @@ async function submitForReviewWithAiGate(t,button){
  }catch(err){
   toast(err.message||'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
  }finally{
-  closeAiCheckingPopup();button.disabled=false;
+  closeAiCheckingPopup();if(trigger)trigger.disabled=false;
  }
 }
 const BrowserFileStore={

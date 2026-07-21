@@ -249,6 +249,9 @@ async function moveTaskToStatus(id,target,source='board'){
   toast(message);return;
  }
  if(target==='revision'){openRejectModal(id);return}
+ // Same AI gate as the drawer's "ready-review" button (ui/task-detail.js) — dragging a card
+ // onto Ready for Review is just another way to submit, it must not bypass the check.
+ if(target==='ready-review'){await submitForReviewWithAiGate(t,null);return}
  try{
   await runAsyncAction(null,()=>AsyncTaskRepository.transition(id,target),{onConflict:()=>render({resetScroll:false})});
  }catch(err){return}

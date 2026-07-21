@@ -47,10 +47,15 @@ Wired up on this side:
   `Access-Control-Allow-Origin: *` outright, before any app code sees a real error). This is why
   the AI gate looked deployed-and-working from the standalone raw-`fetch` test page (no
   credentials there) but actually failed inside the app until this was fixed.
-- `ui/task-detail.js` → `submitForReviewWithAiGate(t, button)` runs when the user clicks the
-  "ready-review" button (in-progress → ready-review, or resubmitting from revision), using the
-  most recently uploaded file and `t.category` as the worker's `taskType`. This **gates the
-  transition**, unlike a purely advisory check:
+- `ui/task-detail.js` → `submitForReviewWithAiGate(t, trigger)` runs for **every** path that
+  submits into ready-review — the drawer's "ready-review" button, and dragging a card onto the
+  Ready for Review column (`moveTaskToStatus` in `ui/shared.js` calls it too, with `trigger:
+  null` since there's no button to disable). Both in-progress → ready-review and resubmitting
+  from revision go through it. Uses the most recently uploaded file and `t.category` as the
+  worker's `taskType`. This **gates the transition**, unlike a purely advisory check — there is
+  no other way to reach `ready-review` that skips it; if you add one (e.g. a bulk "submit all"
+  action later), route it through this same function rather than calling
+  `AsyncTaskRepository.transition(id, 'ready-review')` directly:
   - AI **pass** → proceeds with the normal `AsyncTaskRepository.transition(id, 'ready-review')`,
     still subject to the existing checklist-complete requirement. Stays in Ready for Review
     waiting for a human reviewer, same as before AI existed.
