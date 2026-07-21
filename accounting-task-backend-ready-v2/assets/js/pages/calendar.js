@@ -11,18 +11,8 @@ const CALENDAR_STATUS_THEME={
 function calendarLocalISO(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function calendarTheme(status){return CALENDAR_STATUS_THEME[status]||CALENDAR_STATUS_THEME.assigned}
 function calendarDayLabel(s,withWeekday=false){return new Date(s+'T00:00:00').toLocaleDateString('th-TH',withWeekday?{weekday:'long',day:'numeric',month:'short',year:'numeric'}:{day:'numeric',month:'short'})}
-let calendarRequestId=0;
 function renderCalendar(root){
- const requestId=++calendarRequestId;
- root.innerHTML=pageSkeleton('MONTH-END PLANNING','Closing Calendar');
- AsyncTaskRepository.list({}).then(()=>{
-  if(requestId!==calendarRequestId)return;
-  renderCalendarView(root);
- }).catch(err=>{
-  if(requestId!==calendarRequestId)return;
-  root.innerHTML=pageErrorState('MONTH-END PLANNING','Closing Calendar','calendarRetry',err);
-  const retry=document.getElementById('calendarRetry');if(retry)retry.onclick=()=>renderCalendar(root);
- });
+ renderAsyncPage(root,'calendar','MONTH-END PLANNING','Closing Calendar',()=>renderCalendarView(root));
 }
 function renderCalendarView(root){
  const f=ui.filters.calendar,y=ui.calendarDate.getFullYear(),m=ui.calendarDate.getMonth(),todayIso=calendarLocalISO(TODAY);

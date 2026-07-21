@@ -1,17 +1,7 @@
 // Review Queue rendering and reviewer actions
 
-let reviewQueueRequestId=0;
 function renderReviewQueue(root){
- const requestId=++reviewQueueRequestId;
- root.innerHTML=pageSkeleton('HUMAN REVIEW CONTROL','Review Queue');
- AsyncTaskRepository.list({}).then(()=>{
-  if(requestId!==reviewQueueRequestId)return;
-  renderReviewQueueView(root);
- }).catch(err=>{
-  if(requestId!==reviewQueueRequestId)return;
-  root.innerHTML=pageErrorState('HUMAN REVIEW CONTROL','Review Queue','reviewQueueRetry',err);
-  const retry=document.getElementById('reviewQueueRetry');if(retry)retry.onclick=()=>renderReviewQueue(root);
- });
+ renderAsyncPage(root,'reviewQueue','HUMAN REVIEW CONTROL','Review Queue',()=>renderReviewQueueView(root));
 }
 function renderReviewQueueView(root){
  const f=ui.filters.review;

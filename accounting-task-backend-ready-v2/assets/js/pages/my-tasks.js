@@ -3,18 +3,10 @@
 // AsyncTaskRepository (await + loading/error states) instead of reading state synchronously.
 // The other pages still read state directly and should be migrated to this same pattern.
 
-let myTasksRequestId=0;
 function renderMyTasks(root){
- const requestId=++myTasksRequestId;
- root.innerHTML=pageSkeleton('PERSONAL WORKSPACE','My Tasks');
- AsyncTaskRepository.list({}).then(all=>{
-  if(requestId!==myTasksRequestId)return; // a newer render superseded this one
+ renderAsyncPage(root,'myTasks','PERSONAL WORKSPACE','My Tasks',all=>{
   const mine=all.filter(t=>t.assignee===currentUser().name);
   renderMyTasksView(root,mine);
- }).catch(err=>{
-  if(requestId!==myTasksRequestId)return;
-  root.innerHTML=pageErrorState('PERSONAL WORKSPACE','My Tasks','myTasksRetry',err);
-  const retry=document.getElementById('myTasksRetry');if(retry)retry.onclick=()=>renderMyTasks(root);
  });
 }
 function renderMyTasksView(root,mine){
@@ -38,4 +30,4 @@ function renderMyTasksView(root,mine){
  document.getElementById('newMyTask').onclick=()=>openTaskModal();bindTaskOpenAndDrag();bindRowChecks();
 }
 function myTaskTable(tasks){const sorted=sortRows(tasks,'myTable'),pageSize=25,totalPages=Math.max(1,Math.ceil(sorted.length/pageSize));ui.pageNo.my=Math.min(ui.pageNo.my,totalPages);const rows=sorted.slice((ui.pageNo.my-1)*pageSize,ui.pageNo.my*pageSize);return `<div class="panel"><div class="panel-body"><div class="table-wrap"><table class="standard-table"><thead><tr>${sortableTh('งาน','myTable','title')}${sortableTh('ทีม','myTable','team')}${sortableTh('ผู้ตรวจ','myTable','reviewer')}${sortableTh('สถานะ','myTable','status',x=>STATUS_ORDER.indexOf(x.status))}${sortableTh('ความสำคัญ','myTable','priority')}${sortableTh('งวดบัญชี','myTable','period')}${sortableTh('กำหนดส่ง','myTable','dueDate')}${sortableTh('Checklist','myTable','checklist',x=>x.checklist.filter(c=>c.checked).length/x.checklist.length)}${sortableTh('อัปเดตล่าสุด','myTable','updatedAt')}<th>เปิด</th></tr></thead><tbody>${rows.map(t=>`<tr><td>${taskIdentity(t)}</td><td>${teamChip(t.team)}</td><td>${personValue(t.reviewer)}</td><td>${statusBadge(t.status)}</td><td>${priorityBadge(t.priority)}</td><td>${periodChip(t.period)}</td><td>${dueDateValue(t)}</td><td>${checklistValue(t,'data-table-check')}</td><td>${formatDateTime(t.updatedAt)}</td><td><button class="icon-btn open-task-btn" data-task-open="${t.id}" aria-label="เปิดงาน">›</button></td></tr>`).join('')||'<tr><td colspan="10"><div class="empty"><strong>ไม่พบงาน</strong>ลองเปลี่ยนตัวกรอง</div></td></tr>'}</tbody></table></div>${pagination('my',ui.pageNo.my,totalPages,sorted.length,pageSize)}</div></div>`}
-function myTaskBoard(tasks){return `<div class="board-scroll-shell"><div class="board-scroll" data-board-scroll tabindex="0" aria-label="เลื่อนบอร์ดงานของฉันในแนวนอน"><div class="board">${STATUS_ORDER.map(s=>`<section class="column status-column status-${s}" data-drop-status="${s}"><div class="column-head"><div class="column-title">${statusBadge(s)}</div><span class="column-count">${tasks.filter(t=>t.status===s).length}</span></div>${tasks.filter(t=>t.status===s).map(t=>taskCard(t,false)).join('')||'<div class="empty" style="padding:25px 8px">ไม่มีงาน</div>'}</section>`).join('')}</div></div><div class="board-floating-scroll" data-board-floating-scroll aria-label="แถบเลื่อนบอร์ดซ้ายขวา"><div class="board-floating-scroll-spacer"></div></div></div>`}
+function myTaskBoard(tasks){return renderBoardColumns(tasks,{showTeamOnCard:false,scrollLabel:'เลื่อนบอร์ดงานของฉันในแนวนอน'})}

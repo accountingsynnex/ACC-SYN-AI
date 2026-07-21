@@ -1,17 +1,7 @@
 // Dashboard overview and analytics views
 
-let dashboardRequestId=0;
 function renderDashboard(root){
- const requestId=++dashboardRequestId;
- root.innerHTML=pageSkeleton('ACCOUNTING OVERVIEW · JULY 2026',ui.dashboardTab==='overview'?'Overview':'Analytics');
- AsyncTaskRepository.list({}).then(()=>{
-  if(requestId!==dashboardRequestId)return;
-  renderDashboardView(root);
- }).catch(err=>{
-  if(requestId!==dashboardRequestId)return;
-  root.innerHTML=pageErrorState('ACCOUNTING OVERVIEW · JULY 2026',ui.dashboardTab==='overview'?'Overview':'Analytics','dashboardRetry',err);
-  const retry=document.getElementById('dashboardRetry');if(retry)retry.onclick=()=>renderDashboard(root);
- });
+ renderAsyncPage(root,'dashboard','ACCOUNTING OVERVIEW · JULY 2026',ui.dashboardTab==='overview'?'Overview':'Analytics',()=>renderDashboardView(root));
 }
 function renderDashboardView(root){
  const f=ui.filters.dashboard;const tasks=TaskService.list({search:f.search,team:f.team,period:f.period,category:ui.dashboardTab==='analytics'?f.category:'all'});

@@ -24,11 +24,35 @@ The application uses ordered classic scripts. This keeps the existing shared lex
 `domain/task-service.js` exposes two repositories:
 
 - `TaskService` — the synchronous `LocalTaskService` the legacy pages still read from directly.
-- `AsyncTaskRepository` — a thin async wrapper (`list`/`get`/`transition` return Promises). During integration, point its `repo` field at an `ApiTaskService` instance and any page already awaiting it keeps working unchanged.
+- `AsyncTaskRepository` — a thin async wrapper (`list`/`get`/`transition`/`updateChecklistItem` return
+  Promises). During integration, point its `repo` field at an `ApiTaskService` instance and any page
+  or mutation already going through it keeps working unchanged.
 
-`pages/my-tasks.js` is the original **reference implementation** of a migrated page. All five workspace pages (Dashboard, My Tasks, Team Board, Review Queue, Closing Calendar) now follow the same shape: render a loading skeleton (`pageSkeleton` in `ui/shared.js`), `await AsyncTaskRepository.list()`, render the view on success, and render a notice + retry button (`pageErrorState`) on failure. Each page has a `requestId` guard that discards stale responses when the user navigates/filters before a fetch resolves.
+All five workspace pages (Dashboard, My Tasks, Team Board, Review Queue, Closing Calendar) load through
+one shared helper, `renderAsyncPage(root, requestKey, eyebrow, title, onReady)` in `ui/shared.js`. It
+owns the loading skeleton (`pageSkeleton`), the `await AsyncTaskRepository.list()`, the stale-response
+guard (keyed by `requestKey`, so a slower fetch from a page the user has since navigated away from
+never overwrites what's on screen), and the error/retry state (`pageErrorState`). Each page's
+`renderX(root)` is a one-line call into this helper — **do not** re-implement the request-id/skeleton/
+retry boilerplate inside a page file; add to `renderAsyncPage` itself if the shared shape needs to
+change.
 
-Currently these pages await the fetch and then still read from the synchronous `state` cache to render (initial-load migration). The remaining integration step is to make the **mutations** (transitions, checklist toggles, bulk edits, create/update) go through `AsyncTaskRepository`/`ApiTaskService` too, then retire `LocalTaskService`.
+The two kanban boards (My Tasks board view, Team Board) similarly share one renderer,
+`renderBoardColumns(tasks, { withLoadMore, showTeamOnCard, scrollLabel })` in `ui/shared.js` — the
+per-status columns, cards, empty state and horizontal-scroll wrapper are identical between the two;
+only pagination ("load more" chip) and whether the team chip shows on each card differ.
+
+Async mutations follow the same rule: route user-triggered writes (workflow transitions, checklist
+updates) through `runAsyncAction(triggerElement, () => AsyncTaskRepository.xyz(...), { onConflict })`
+in `ui/shared.js`, not by mutating local state directly. It disables the trigger while the call is in
+flight, reverts optimistic UI on failure, and routes an HTTP 409 to a blocking "reload the task"
+dialog (`showConflictModal`, `#conflictModal` in `index.html`) instead of a generic error toast. See
+`ui/task-detail.js` for the reference wiring on checklist items and transition buttons.
+
+The pages currently still read from the synchronous `state` cache to render each view (initial-load
+migration only). The remaining integration step is to move the other mutations (bulk edits,
+create/update, master data, annual tasks) through `AsyncTaskRepository`/`ApiTaskService` +
+`runAsyncAction` the same way, then retire `LocalTaskService`.
 
 ## Backend migration path
 

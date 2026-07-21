@@ -115,6 +115,24 @@ function optionList(values,current,labelFn=x=>x){return values.map(v=>`<option v
 // Shared loading/error scaffolding for async-migrated pages (see pages/*.js).
 function pageSkeleton(eyebrow,title){return `<div class="page-head"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>กำลังโหลดข้อมูล…</p></div></div><div class="kpi-grid">${Array.from({length:5},()=>'<div class="kpi skeleton-kpi" aria-hidden="true"><span>&nbsp;</span><strong>—</strong><small>&nbsp;</small></div>').join('')}</div><div class="panel"><div class="panel-body"><div class="empty" role="status" aria-live="polite">กำลังโหลด…</div></div></div>`}
 function pageErrorState(eyebrow,title,retryId,err){return `<div class="page-head"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1></div></div>${noticeBox('danger','โหลดข้อมูลไม่สำเร็จ',err&&err.message?err.message:'เกิดข้อผิดพลาดในการเชื่อมต่อ')}<div style="margin-top:12px"><button class="btn primary" id="${retryId}">ลองอีกครั้ง</button></div>`}
+// Common shell for every AsyncTaskRepository-backed page (see pages/*.js): shows the
+// skeleton, guards against a slower stale request finishing after a newer one, and wires
+// the retry button on failure. `onReady(data)` receives the resolved task list; pages that
+// only need the read to succeed (they re-read via TaskService/state themselves) can ignore it.
+const asyncPageRequestIds={};
+function renderAsyncPage(root,requestKey,eyebrow,title,onReady){
+ const id=asyncPageRequestIds[requestKey]=(asyncPageRequestIds[requestKey]||0)+1;
+ root.innerHTML=pageSkeleton(eyebrow,title);
+ AsyncTaskRepository.list({}).then(data=>{
+  if(asyncPageRequestIds[requestKey]!==id)return;
+  onReady(data);
+ }).catch(err=>{
+  if(asyncPageRequestIds[requestKey]!==id)return;
+  const retryId=`${requestKey}Retry`;
+  root.innerHTML=pageErrorState(eyebrow,title,retryId,err);
+  const retry=document.getElementById(retryId);if(retry)retry.onclick=()=>renderAsyncPage(root,requestKey,eyebrow,title,onReady);
+ });
+}
 function filterControl(label,id,value,options,extra=''){return `<div class="field ${extra}"><label for="${id}">${label}</label><select class="control" id="${id}">${optionList(options,value,v=>v==='all'?'ทั้งหมด':v)}</select></div>`}
 function searchControl(id,value,placeholder='ค้นหา'){return `<div class="field search"><label for="${id}">ค้นหา</label><input class="control" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}"></div>`}
 const PRIORITY_LABEL={critical:'Critical',high:'High',normal:'Normal',low:'Low'};
@@ -187,6 +205,18 @@ function taskCard(t,showTeam=true){
  <h4>${esc(t.title)}</h4><div class="card-badges">${priorityBadge(t.priority)}${isOverdue(t)?'<span class="ui-chip queue-chip queue-bad">เลยกำหนด</span>':''}</div>
  <div class="check-mini"><span><i>Checklist</i><b data-check-count="${t.id}">${done}/${total}</b></span><div class="progress-track"><div class="progress-fill" data-progress-fill="${t.id}" style="width:${pct}%"></div></div></div>
  <div class="card-footer"><div class="meta">${personValue(t.assignee)}${dueDateValue(t)}</div></div></article>`;
+}
+// Shared kanban-column shell for both board views (My Tasks and Team Board): status columns,
+// task cards, empty-state text and the horizontal scroll wrapper are identical between the two;
+// only whether columns paginate with a "load more" chip and whether cards show the team chip differ.
+function renderBoardColumns(tasks,{withLoadMore=false,showTeamOnCard=true,scrollLabel='เลื่อนบอร์ดในแนวนอน'}={}){
+ return `<div class="board-scroll-shell"><div class="board-scroll" data-board-scroll tabindex="0" aria-label="${esc(scrollLabel)}"><div class="board">${STATUS_ORDER.map(s=>{
+  const rows=tasks.filter(t=>t.status===s);
+  const limit=withLoadMore?(ui.boardLimit[s]||10):rows.length;
+  const visible=rows.slice(0,limit);
+  const more=withLoadMore&&rows.length>limit?`<button class="chip" data-board-more="${s}">แสดงเพิ่ม ${Math.min(10,rows.length-limit)} รายการ</button>`:'';
+  return `<section class="column status-column status-${s}" data-drop-status="${s}"><div class="column-head"><div class="column-title">${statusBadge(s)}</div><span class="column-count">${rows.length}</span></div>${visible.map(t=>taskCard(t,showTeamOnCard)).join('')||'<div class="empty" style="padding:25px 8px">ไม่มีงาน</div>'}${more}</section>`;
+ }).join('')}</div></div><div class="board-floating-scroll" data-board-floating-scroll aria-label="แถบเลื่อนบอร์ดซ้ายขวา"><div class="board-floating-scroll-spacer"></div></div></div>`;
 }
 function syncTaskProgress(t){
  const done=t.checklist.filter(x=>x.checked).length,total=t.checklist.length,pct=total?done/total*100:0;
