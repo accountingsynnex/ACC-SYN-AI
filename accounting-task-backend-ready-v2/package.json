@@ -1,0 +1,12 @@
+{
+  "name": "accounting-task-backend-ready-handoff",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Feature-based frontend handoff for Accounting Task",
+  "scripts": {
+    "validate": "node scripts/validate.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

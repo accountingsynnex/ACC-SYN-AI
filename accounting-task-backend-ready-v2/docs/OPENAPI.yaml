@@ -1,0 +1,565 @@
+openapi: 3.0.3
+info:
+  title: Accounting Task API
+  version: 1.0.0
+  description: Backend contract for the Accounting Task frontend handoff.
+servers:
+  - url: /api/v1
+security:
+  - sessionAuth: []
+paths:
+  /me:
+    get:
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+  /tasks:
+    get:
+      operationId: listTasks
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: team, in: query, schema: { type: string } }
+        - { name: period, in: query, schema: { type: string, pattern: '^\\d{4}-\\d{2}$' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+        - { name: priority, in: query, schema: { $ref: '#/components/schemas/TaskPriority' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: Paginated tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+    post:
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Created task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: getTask
+      responses:
+        '200':
+          description: Task detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskUpdate' }
+      responses:
+        '200':
+          description: Updated task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /tasks/{taskId}/transitions:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: transitionTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetStatus, version]
+              properties:
+                targetStatus: { $ref: '#/components/schemas/TaskStatus' }
+                reason: { type: string, nullable: true, maxLength: 2000 }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Transitioned task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /tasks/{taskId}/checklist/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - name: itemId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateChecklistItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checked, version]
+              properties:
+                checked: { type: boolean }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Updated task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+  /tasks/{taskId}/files:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: uploadTaskFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                category: { type: string }
+      responses:
+        '201':
+          description: Uploaded file metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskFile' }
+  /tasks/{taskId}/files/{fileId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - name: fileId
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: deleteTaskFile
+      responses:
+        '204': { description: Deleted }
+  /tasks/{taskId}/files/{fileId}/download:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - name: fileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: downloadTaskFile
+      responses:
+        '200':
+          description: Signed URL or file stream
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+  /teams:
+    get:
+      operationId: listTeams
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Team' } }
+    post:
+      operationId: createTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TeamInput' }
+      responses:
+        '201':
+          description: Created team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Team' }
+  /teams/{teamId}:
+    parameters:
+      - name: teamId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TeamInput' }
+      responses:
+        '200':
+          description: Updated team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Team' }
+    delete:
+      operationId: deleteTeam
+      responses:
+        '204': { description: Deleted or inactivated }
+  /categories:
+    get:
+      operationId: listCategories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Category' } }
+    post:
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Created category
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+  /annual-tasks:
+    get:
+      operationId: listAnnualTasks
+      responses:
+        '200':
+          description: Annual tasks
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AnnualTask' } }
+    post:
+      operationId: createAnnualTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnnualTaskInput' }
+      responses:
+        '201':
+          description: Created annual task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnnualTask' }
+  /annual-tasks/{annualTaskId}/generate:
+    parameters:
+      - name: annualTaskId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: generateAnnualTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period]
+              properties:
+                period: { type: string, pattern: '^\\d{4}-\\d{2}$' }
+                dueDate: { type: string, format: date }
+      responses:
+        '201':
+          description: Generated task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /notifications:
+    get:
+      operationId: listNotifications
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+  /notifications/{notificationId}:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [read]
+              properties:
+                read: { type: boolean }
+      responses:
+        '200':
+          description: Updated notification
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      responses:
+        '204': { description: Updated }
+  /dashboard/overview:
+    get:
+      operationId: getDashboardOverview
+      responses:
+        '200':
+          description: Dashboard overview aggregates
+  /dashboard/analytics:
+    get:
+      operationId: getDashboardAnalytics
+      responses:
+        '200':
+          description: Dashboard analytics aggregates
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+  parameters:
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Stale version or duplicate generation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Validation or workflow error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [assigned, in-progress, ready-review, under-review, revision, approved]
+    TaskPriority:
+      type: string
+      enum: [low, normal, high, critical]
+    CurrentUser:
+      type: object
+      required: [id, displayName, role, permissions]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [staff, reviewer, teamlead, manager] }
+        teamId: { type: string, nullable: true }
+        permissions: { type: array, items: { type: string } }
+    Task:
+      type: object
+      required: [id, taskNumber, title, status, priority, version, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        taskNumber: { type: string }
+        title: { type: string }
+        teamId: { type: string }
+        categoryId: { type: string }
+        assigneeId: { type: string }
+        reviewerId: { type: string, nullable: true }
+        period: { type: string }
+        dueDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        restricted: { type: boolean }
+        version: { type: integer }
+        checklist:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistItem' }
+        files:
+          type: array
+          items: { $ref: '#/components/schemas/TaskFile' }
+        activity:
+          type: array
+          items: { $ref: '#/components/schemas/Activity' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TaskCreate:
+      type: object
+      required: [title, teamId, categoryId, assigneeId, period, dueDate, priority]
+      properties:
+        title: { type: string, maxLength: 300 }
+        teamId: { type: string }
+        categoryId: { type: string }
+        assigneeId: { type: string }
+        reviewerId: { type: string, nullable: true }
+        period: { type: string }
+        dueDate: { type: string, format: date }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        restricted: { type: boolean, default: false }
+        checklist:
+          type: array
+          items:
+            type: object
+            required: [label, required]
+            properties:
+              label: { type: string }
+              required: { type: boolean }
+    TaskUpdate:
+      allOf:
+        - $ref: '#/components/schemas/TaskCreate'
+        - type: object
+          required: [version]
+          properties:
+            version: { type: integer, minimum: 1 }
+    TaskListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        meta:
+          type: object
+          required: [page, pageSize, total]
+          properties:
+            page: { type: integer }
+            pageSize: { type: integer }
+            total: { type: integer }
+    ChecklistItem:
+      type: object
+      required: [id, label, required, checked]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        required: { type: boolean }
+        checked: { type: boolean }
+        checkedBy: { type: string, nullable: true }
+        checkedAt: { type: string, format: date-time, nullable: true }
+    TaskFile:
+      type: object
+      required: [id, name, mimeType, sizeBytes, uploadedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        version: { type: integer }
+        malwareStatus: { type: string }
+        uploadedAt: { type: string, format: date-time }
+    Activity:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        actorName: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Team:
+      allOf:
+        - $ref: '#/components/schemas/TeamInput'
+        - type: object
+          required: [id]
+          properties: { id: { type: string } }
+    TeamInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        color: { type: string, nullable: true }
+        active: { type: boolean, default: true }
+    Category:
+      allOf:
+        - $ref: '#/components/schemas/CategoryInput'
+        - type: object
+          required: [id]
+          properties: { id: { type: string } }
+    CategoryInput:
+      type: object
+      required: [teamId, code, name]
+      properties:
+        teamId: { type: string }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        active: { type: boolean, default: true }
+    AnnualTask:
+      allOf:
+        - $ref: '#/components/schemas/AnnualTaskInput'
+        - type: object
+          required: [id, version]
+          properties:
+            id: { type: string }
+            version: { type: integer }
+    AnnualTaskInput:
+      type: object
+      required: [name, teamId, categoryId, frequency, priority]
+      properties:
+        name: { type: string }
+        teamId: { type: string }
+        categoryId: { type: string }
+        frequency: { type: string, enum: [monthly, quarterly, yearly, manual] }
+        defaultAssigneeId: { type: string, nullable: true }
+        defaultReviewerId: { type: string, nullable: true }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        openRule: { type: string, nullable: true }
+        dueRule: { type: string, nullable: true }
+        checklist: { type: array, items: { type: string } }
+        requiredFiles: { type: array, items: { type: string } }
+        active: { type: boolean, default: true }
+    Notification:
+      type: object
+      required: [id, title, read, createdAt]
+      properties:
+        id: { type: string }
+        taskId: { type: string, nullable: true }
+        title: { type: string }
+        message: { type: string, nullable: true }
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }
