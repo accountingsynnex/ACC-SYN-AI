@@ -3,10 +3,16 @@
  * It is intentionally dependency-free and is not enabled while dataMode=local.
  */
 class AccountingTaskApiClient {
-  constructor({ baseUrl, timeoutMs = 15000, getAccessToken = () => null }) {
+  // credentials defaults to 'include' for the same-origin-ish main backend (needs the auth
+  // cookie). A cross-origin API with wildcard CORS (Access-Control-Allow-Origin: '*') — like the
+  // task-board-worker AI review endpoints — must use 'omit' instead: browsers hard-reject any
+  // credentialed request whose response allows a wildcard origin, which surfaces as an opaque
+  // "Failed to fetch" with no HTTP status, not a clean CORS error message.
+  constructor({ baseUrl, timeoutMs = 15000, getAccessToken = () => null, credentials = 'include' }) {
     this.baseUrl = String(baseUrl || '').replace(/\/$/, '');
     this.timeoutMs = timeoutMs;
     this.getAccessToken = getAccessToken;
+    this.credentials = credentials;
   }
 
   async request(path, { method = 'GET', body, headers = {}, signal } = {}) {
@@ -24,7 +30,7 @@ class AccountingTaskApiClient {
         headers: requestHeaders,
         body: body == null ? undefined : isFormData ? body : JSON.stringify(body),
         signal: signal || controller.signal,
-        credentials: 'include'
+        credentials: this.credentials
       });
 
       const contentType = response.headers.get('content-type') || '';

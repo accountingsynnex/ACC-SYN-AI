@@ -46,7 +46,9 @@ window.AiReviewService = AiReviewService;
 const AiReview = (() => {
   const cfg = window.ACCOUNTING_TASK_CONFIG?.aiReview || {};
   const service = cfg.enabled && cfg.baseUrl
-    ? new AiReviewService(new AccountingTaskApiClient({ baseUrl: cfg.baseUrl }))
+    // credentials: 'omit' — the worker's CORS is wildcard (no cookie-based auth), and browsers
+    // reject a credentialed request against a wildcard Access-Control-Allow-Origin outright.
+    ? new AiReviewService(new AccountingTaskApiClient({ baseUrl: cfg.baseUrl, credentials: 'omit' }))
     : null;
   return { enabled: Boolean(service), service };
 })();

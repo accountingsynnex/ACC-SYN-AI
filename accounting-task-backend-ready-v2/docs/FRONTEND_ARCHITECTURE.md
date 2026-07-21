@@ -39,7 +39,14 @@ Wired up on this side:
   `enabled: true` pointing at the live worker above. Set `enabled: false` to turn this off without
   touching any other file.
 - `services/ai-review-service.js` → `AiReviewService` (thin wrapper, same `AccountingTaskApiClient`
-  used for the main API) and the `AiReview` singleton (`AiReview.enabled` / `AiReview.service`).
+  used for the main API, but constructed with `credentials: 'omit'`) and the `AiReview` singleton
+  (`AiReview.enabled` / `AiReview.service`). `AccountingTaskApiClient` now takes a `credentials`
+  option (defaults to `'include'` for the main backend) — a cross-origin, cookie-less, wildcard-
+  CORS API like this worker **must** use `'omit'`, or every call fails with an opaque
+  "Failed to fetch" (browsers reject `credentials: include` against
+  `Access-Control-Allow-Origin: *` outright, before any app code sees a real error). This is why
+  the AI gate looked deployed-and-working from the standalone raw-`fetch` test page (no
+  credentials there) but actually failed inside the app until this was fixed.
 - `ui/task-detail.js` → `submitForReviewWithAiGate(t, button)` runs when the user clicks the
   "ready-review" button (in-progress → ready-review, or resubmitting from revision), using the
   most recently uploaded file and `t.category` as the worker's `taskType`. This **gates the
