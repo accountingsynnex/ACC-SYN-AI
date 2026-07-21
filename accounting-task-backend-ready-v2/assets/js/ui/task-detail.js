@@ -13,27 +13,55 @@ function drawerHtml(t){
  return `<div class="drawer-head"><div><div class="eyebrow">${t.id}</div><h2>${esc(t.title)}</h2><div class="entity-row">${teamChip(t.team)}${categoryChip(t.category)}${statusBadge(t.status)}</div></div><button class="close-btn" id="drawerClose">×</button></div><div class="drawer-body"><div class="drawer-tabs">${tabs.map(([id,l])=>`<button class="drawer-tab ${ui.drawerTab===id?'active':''}" data-drawer-tab="${id}">${l}</button>`).join('')}</div>${body}</div><div class="drawer-foot">${canEdit(t)?'<button class="btn" id="editTaskBtn">แก้ไขงาน</button>':''}${actions}</div>`
 }
 function formatFileSize(bytes){const n=Number(bytes)||0;if(n<1024)return `${n} B`;if(n<1048576)return `${(n/1024).toFixed(1)} KB`;return `${(n/1048576).toFixed(1)} MB`}
-// AI review is an advisory annotation from the task-board-worker Gemini comparison (see
-// services/ai-review-service.js) — not part of the workflow state machine. It never blocks a
-// submission or changes task.status; the reviewer still makes the real call in Review Queue.
+// AI review gates the in-progress → ready-review submission (see submitForReviewWithAiGate
+// below): it compares the latest uploaded file against reference examples via the
+// task-board-worker (services/ai-review-service.js). Pass → proceeds to ready-review as normal.
+// Fail (including the AI call itself failing) → sent straight to revision with the reason,
+// bypassing the normal transition permission check (LocalTaskService.aiReject). The human
+// reviewer still makes the real approve/revision call once it reaches Review Queue.
 function aiReviewNotice(t){
  if(!AiReview.enabled||!t.aiReview)return '';
  const r=t.aiReview;
- if(r.checking)return noticeBox('info','AI กำลังตรวจไฟล์...','เทียบกับไฟล์ตัวอย่างอ้างอิงของประเภทงานนี้ ระบบจะไม่บล็อกการอัปโหลด');
- return noticeBox(r.status==='pass'?'success':'warning',r.status==='pass'?'AI ตรวจแล้ว: ดูสมบูรณ์':'AI ตรวจแล้ว: พบข้อสังเกต',`${esc(r.reason)} (ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)}) — ผลนี้เป็นแค่ข้อเสนอ ผู้ตรวจยังต้องพิจารณาเองใน Review Queue`);
+ return noticeBox(r.status==='pass'?'success':'warning',r.status==='pass'?'AI ตรวจผ่านก่อนส่งเข้า Ready for Review':'AI ส่งกลับ Revision อัตโนมัติ',`${esc(r.reason)} (ไฟล์: ${esc(r.fileName)} · ${formatDateTime(r.checkedAt)})`);
 }
-async function runAiReview(t,file){
- if(!AiReview.enabled)return;
- t.aiReview={checking:true};openTask(t.id,'files');
- try{
-  const verdict=await AiReview.service.reviewFile(t.category,file);
-  t.aiReview={status:verdict.status==='pass'?'pass':'fail',reason:verdict.reason||'',fileName:file.name,checkedAt:new Date().toISOString()};
-  t.activity.push({at:t.aiReview.checkedAt,action:`🤖 AI ตรวจไฟล์ ${file.name}: ${t.aiReview.status==='pass'?'ผ่าน':'พบข้อสังเกต'} — ${t.aiReview.reason}`,by:'AI Review'});
- }catch(err){
-  t.aiReview={status:'fail',reason:'เรียก AI ตรวจไม่สำเร็จ (เช็คว่า worker ตั้งค่า/deploy ไว้แล้ว): '+err.message,fileName:file.name,checkedAt:new Date().toISOString()};
+// Runs on the "ready-review" button specifically (see bindDrawer below), not on every upload.
+async function submitForReviewWithAiGate(t,button){
+ if(!t.files.length){toast('กรุณาอัปโหลดไฟล์ก่อนส่งตรวจ');return}
+ if(!AiReview.enabled){
+  try{await runAsyncAction(button,()=>AsyncTaskRepository.transition(t.id,'ready-review'),{onConflict:()=>openTask(t.id)})}catch(err){return}
+  toast('ส่งตรวจแล้ว');closeDrawer();render({resetScroll:false});
+  return;
  }
- Store.save();
- if(document.getElementById('taskDrawer').classList.contains('show'))openTask(t.id,'files');
+ const latest=t.files[t.files.length-1];
+ button.disabled=true;const prevLabel=button.textContent;button.textContent='AI กำลังตรวจ...';
+ try{
+  const blob=await BrowserFileStore.get(t.id,latest.id);
+  if(!blob)throw new Error('ไม่พบไฟล์ที่อัปโหลดในเบราว์เซอร์นี้ ลองอัปโหลดไฟล์ใหม่อีกครั้ง');
+  let verdict;
+  try{
+   verdict=await AiReview.service.reviewFile(t.category,new File([blob],latest.name));
+  }catch(err){
+   // Fail closed on an AI-call error (network/worker down), same as task-board-worker does —
+   // don't let an infra hiccup silently let an unchecked submission through as "pass".
+   verdict={status:'fail',reason:`เรียก AI ตรวจไม่สำเร็จ กรุณาลองส่งตรวจใหม่อีกครั้ง (${err.message})`};
+  }
+  const checkedAt=new Date().toISOString();
+  t.aiReview={status:verdict.status==='pass'?'pass':'fail',reason:verdict.reason||'',fileName:latest.name,checkedAt};
+  if(verdict.status==='pass'){
+   await AsyncTaskRepository.transition(t.id,'ready-review');
+   t.activity.push({at:checkedAt,action:`🤖 AI ตรวจผ่านก่อนส่งตรวจ (${latest.name}): ${verdict.reason}`,by:'AI Review'});
+   Store.save();
+   toast('AI ตรวจผ่าน — ส่งเข้า Ready for Review แล้ว');
+  }else{
+   await AsyncTaskRepository.aiReject(t.id,verdict.reason);
+   toast('AI พบข้อสังเกต — ส่งกลับไป Revision แล้ว');
+  }
+  closeDrawer();render({resetScroll:false});
+ }catch(err){
+  toast(err.message||'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
+ }finally{
+  button.disabled=false;button.textContent=prevLabel;
+ }
 }
 const BrowserFileStore={
  memory:new Map(),
@@ -63,7 +91,9 @@ function bindDrawer(t){
   toast('บันทึก Checklist และอัปเดตการ์ดแล้ว');
  });
  document.querySelectorAll('[data-transition]').forEach(b=>b.onclick=async()=>{
-  const target=b.dataset.transition;if(target==='revision'){openRejectModal(t.id);return}
+  const target=b.dataset.transition;
+  if(target==='revision'){openRejectModal(t.id);return}
+  if(target==='ready-review'){await submitForReviewWithAiGate(t,b);return}
   try{
    await runAsyncAction(b,()=>AsyncTaskRepository.transition(t.id,target),{onConflict:()=>openTask(t.id)});
   }catch(err){return}
@@ -72,7 +102,7 @@ function bindDrawer(t){
  document.getElementById('editTaskBtn')?.addEventListener('click',()=>openTaskModal(t.id));
  document.querySelectorAll('[data-file-download]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await downloadTaskFile(t.id,button.dataset.fileDownload)}catch(err){toast(err.message)}finally{button.disabled=false}});
  document.querySelectorAll('[data-file-delete]').forEach(button=>button.onclick=async()=>{if(!confirm('ลบไฟล์นี้หรือไม่?'))return;try{const file=TaskService.removeFile(t.id,button.dataset.fileDelete);await BrowserFileStore.remove(t.id,file.id);openTask(t.id,'files');toast('ลบไฟล์แล้ว')}catch(err){toast(err.message)}});
- document.getElementById('drawerFile')?.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast('ไฟล์ต้องมีขนาดไม่เกิน 10 MB');return}const meta={id:uid('F'),name:f.name,type:'Submission',version:t.files.length+1,size:f.size,uploadedAt:new Date().toISOString()};try{await BrowserFileStore.put(t.id,meta.id,f);TaskService.addFile(t.id,meta);openTask(t.id,'files');toast('อัปโหลดไฟล์แล้ว');runAiReview(t,f)}catch(err){toast(err.message)}})
+ document.getElementById('drawerFile')?.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast('ไฟล์ต้องมีขนาดไม่เกิน 10 MB');return}const meta={id:uid('F'),name:f.name,type:'Submission',version:t.files.length+1,size:f.size,uploadedAt:new Date().toISOString()};try{await BrowserFileStore.put(t.id,meta.id,f);TaskService.addFile(t.id,meta);openTask(t.id,'files');toast('อัปโหลดไฟล์แล้ว')}catch(err){toast(err.message)}})
 }
 function openModal(id){
  document.getElementById('modalBackdrop').classList.add('show');

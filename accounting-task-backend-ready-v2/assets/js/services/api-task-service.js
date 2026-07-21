@@ -60,6 +60,12 @@ class ApiTaskService {
     );
   }
 
+  // System-only transition mirroring LocalTaskService.aiReject — the backend must apply the
+  // same restriction: only its own AI-review integration may call this, not a user action.
+  aiReject(taskId, reason) {
+    return this.client.post(`/tasks/${encodeURIComponent(taskId)}/ai-reject`, { reason });
+  }
+
   // File transfer has no LocalTaskService equivalent (the local demo keeps metadata only and
   // stores bytes in IndexedDB — see BrowserFileStore in ui/task-detail.js), so these keep their
   // own names rather than forcing a match to addFile/removeFile.

@@ -40,11 +40,25 @@ Wired up on this side:
   touching any other file.
 - `services/ai-review-service.js` → `AiReviewService` (thin wrapper, same `AccountingTaskApiClient`
   used for the main API) and the `AiReview` singleton (`AiReview.enabled` / `AiReview.service`).
-- `ui/task-detail.js` → `runAiReview(t, file)` fires (not awaited) right after a file upload
-  succeeds, using `t.category` as the worker's `taskType`. It never blocks the upload or changes
-  `t.status` — the verdict is stored on `t.aiReview` and rendered as an advisory notice
-  (`aiReviewNotice`) in the Files tab, plus one activity log line. The human reviewer in Review
-  Queue still makes the real approve/revision call.
+- `ui/task-detail.js` → `submitForReviewWithAiGate(t, button)` runs when the user clicks the
+  "ready-review" button (in-progress → ready-review, or resubmitting from revision), using the
+  most recently uploaded file and `t.category` as the worker's `taskType`. This **gates the
+  transition**, unlike a purely advisory check:
+  - AI **pass** → proceeds with the normal `AsyncTaskRepository.transition(id, 'ready-review')`,
+    still subject to the existing checklist-complete requirement. Stays in Ready for Review
+    waiting for a human reviewer, same as before AI existed.
+  - AI **fail** (including the AI call itself erroring — fails closed, doesn't silently let an
+    unchecked file through) → `AsyncTaskRepository.aiReject(id, reason)` sends it straight to
+    Revision with the reason, bypassing the normal transition permission check
+    (`LocalTaskService.aiReject` in `domain/task-service.js`, mirrored in `ApiTaskService`). No
+    UI button ever calls `aiReject` directly — only this AI-check code path does; a human can't
+    self-trigger it.
+  - Either way the verdict is stored on `t.aiReview` and shown via `aiReviewNotice` in the Files
+    tab, plus one activity log line.
+  - If `AiReview.enabled` is false, this falls back to the plain transition with no AI step —
+    behavior is unchanged from before this feature existed.
+  - The human reviewer in Review Queue still makes the real approve/revision call once a task
+    reaches Ready for Review — AI only gates entry into that queue, not the final decision.
 
 The worker's KV namespaces and `GEMINI_API_KEY` secret were configured directly in the Cloudflare
 dashboard (Workers Builds auto-deploys on push to its `main`, no local `wrangler` needed). Still

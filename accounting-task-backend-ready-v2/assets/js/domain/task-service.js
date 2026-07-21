@@ -68,6 +68,17 @@ const LocalTaskService={
   item.checked=Boolean(checked);t.updatedAt=new Date().toISOString();
   t.activity.push({at:t.updatedAt,action:`${item.checked?'ทำ Checklist เสร็จ':'ยกเลิก Checklist'}: ${item.label}`,by:currentUser().name});
   Store.save();return t;
+ },
+ // System-only transition: the AI review gate (ui/task-detail.js, on the in-progress →
+ // ready-review submit action) sends a failed check straight to revision. Unlike transition()
+ // this bypasses allowedTargets() on purpose — no UI button should ever call this directly, a
+ // human can't self-trigger it, only the AI-check code path can.
+ aiReject(id,reason){
+  const t=this.get(id);if(!t)throw new Error('ไม่พบงาน');
+  if(!['in-progress','revision'].includes(t.status))throw new Error('AI ตรวจได้เฉพาะงานที่กำลังทำอยู่หรืออยู่ระหว่างแก้ไข (In Progress / Revision)');
+  t.status='revision';t.updatedAt=new Date().toISOString();
+  t.activity.push({at:t.updatedAt,action:`🤖 AI ตรวจไม่ผ่านตอนส่งเข้า Ready for Review ส่งกลับไป Revision — ${reason}`,by:'AI Review'});
+  Store.save();return t;
  }
 };
 
@@ -85,7 +96,8 @@ const AsyncTaskRepository = {
   async create(payload) { return this.repo.create(payload); },
   async update(id, patch) { return this.repo.update(id, patch); },
   async transition(id, target, options = {}) { return this.repo.transition(id, target, options); },
-  async updateChecklistItem(id, itemId, checked) { return this.repo.updateChecklistItem(id, itemId, checked); }
+  async updateChecklistItem(id, itemId, checked) { return this.repo.updateChecklistItem(id, itemId, checked); },
+  async aiReject(id, reason) { return this.repo.aiReject(id, reason); }
 };
 
 function matchTask(t,f){

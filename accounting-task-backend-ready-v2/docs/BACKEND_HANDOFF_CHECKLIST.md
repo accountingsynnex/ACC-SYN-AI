@@ -6,6 +6,10 @@
 - [ ] Server-side role/team permissions
 - [ ] Task list, detail, create and update endpoints
 - [ ] Workflow transition endpoint with audit trail
+- [ ] `POST /tasks/{taskId}/ai-reject` — see `docs/OPENAPI.yaml`. Restrict this to the AI-review
+      integration only (service credential / server-to-server), never a normal user role — it
+      bypasses the usual transition permission check by design (see FRONTEND_ARCHITECTURE.md,
+      "AI file review")
 - [ ] Checklist update endpoint with concurrency control
 - [ ] File upload, malware scan, authorized download and retention rules
 - [ ] Team/category master data
@@ -49,3 +53,11 @@
       sidebar collapse, table/card restacking and full-width filters; not verified with an
       actual device/browser screenshot in this pass — do a quick manual pass on a real phone
       before sign-off.
+- [x] AI review gates the ready-review submission — wired to the live
+      `task-board-worker.accountingsynnex.workers.dev` (see FRONTEND_ARCHITECTURE.md, "AI file
+      review"). **Known tradeoff, flagging for sign-off:** the AI-call-failure path fails closed
+      (a network error sends the task to Revision, same as a real "doesn't match reference"
+      result) rather than letting the submission through unchecked. If the worker has downtime,
+      every submission during that window gets auto-rejected to Revision until it's back — decide
+      if that's acceptable before this goes to real users, or change it to fail-open with a
+      warning instead.

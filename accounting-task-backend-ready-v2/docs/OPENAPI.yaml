@@ -102,6 +102,35 @@ paths:
               schema: { $ref: '#/components/schemas/Task' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /tasks/{taskId}/ai-reject:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      operationId: aiRejectTask
+      description: >-
+        System-only transition: the frontend's AI file-review gate (see
+        docs/FRONTEND_ARCHITECTURE.md) calls this when the automated check against reference
+        examples fails on submission, sending the task straight to `revision` with the AI's
+        reason. This bypasses the normal role/workflow permission check `transitionTask` applies —
+        the backend must restrict it to server-to-server calls from the AI review integration (or
+        a dedicated service credential), never to an end-user role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: Task moved to revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /tasks/{taskId}/checklist/{itemId}:
     parameters:
       - $ref: '#/components/parameters/TaskId'
